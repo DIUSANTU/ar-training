@@ -7,7 +7,7 @@
    EMOM : { emom: minutes, reps: répétitions par minute }. */
 const CYCLE = {
   id: 'm1s4',
-  title: 'Méso 1 · Semaine 4 — décharge',
+  title: 'Semaine de décharge · 5 séances',
   from: '2026-11-16',
   to: '2026-11-22',
   note: 'Décharge : rien à l\'échec. Dips et squat : moitié des séries. Tractions : tout le volume, charge réduite. Note le RIR de la dernière série du premier mouvement.',
@@ -53,28 +53,27 @@ const CYCLE = {
       ['abdstand', '2x8@60 2:00'],
       ['crunchpoulie', '2x12-15@35 2:00']
     ] },
-    { id: 's4', name: 'S4 Push volume', items: [
+    // Décharge passée à 5 séances le 15/11/2026 (demande d'Adrien) : S4 = ancien Push volume + ancien Pull volume, S5 = ancien Legs volume.
+    { id: 's4', name: 'S4 Upper (haut du corps)', items: [
       ['dips', 'w 1x10@0 1:30 / w 1x5@20 2:00 / w 1x3@30 2:30 / 2x8@40 3:00'],
       ['cleanpress', 'w 1x6@20 1:00 / 2x6@35 2:30'],
-      ['latpoulie1', '2x12@10 1:30'],
-      ['tri1', '2x8@15-17.5 2:30', 'Extension verticale avec bande poignets.'],
-      ['ohtri', '2x8-10@14 2:30']
-    ] },
-    { id: 's5', name: 'S5 Pull volume', items: [
       ['pull', 'w 1x10@0 1:30 / w 1x5@10 2:00 / w 1x3@15 2:30 / 4x6@20 3:00'],
       ['emompull', { emom: 10, reps: 5 }, 'Au poids du corps.'],
       ['rowwide', '2x8@50 2:30', 'Charge par main.'],
       ['rowclose1', '1x8@70 2:30', 'Charge par main. Machine Technogym ou tirage horizontal.'],
-      ['latpoulie1', '2x10@10 1:30'],
+      ['latpoulie1', '2x12@10 1:30'],
+      ['tri1', '2x8@15-17.5 2:30', 'Extension verticale avec bande poignets.'],
+      ['ohtri', '2x8-10@14 2:30'],
       ['ham', '1x8@22 2:00'],
       ['curlseat', '1x8@16 2:00']
     ] },
-    { id: 's6', name: 'S6 Legs volume', items: [
+    { id: 's5', name: 'S5 Lower (bas du corps)', items: [
       ['squat', 'w 1x8@0 1:00 / w 1x6@60 1:30 / w 1x4@80 2:00 / w 1x3@100 2:30 / 3x5@110 3:00'],
       ['hip', '2x8@250 3:00'],
       ['lcurl1', '2x8@15 2:30'],
       ['legext1', '2x8-10@40-45 2:30'],
-      ['crunchpoulie', '2x12-15@35 2:00']
+      ['crunchpoulie', '2x12-15@35 2:00'],
+      ['latpoulie1', '2x10@10 1:30']
     ] }
   ]
 };

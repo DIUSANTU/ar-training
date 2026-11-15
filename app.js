@@ -135,7 +135,7 @@ const DEF_EX = [
 function mkEx([id, name, muscle, sec, eq, type, repMin, repMax, inc, rest, bar]) { return { id, name, muscle, sec: sec ? sec.split(',') : [], eq: EQ_CODE[eq], type, bar: !!bar, repMin, repMax, inc, rest, note: '', archived: false }; }
 // Programme du cycle (cycle.js) : absent = l'appli fonctionne en mode libre seul
 const CYC = typeof CYCLE !== 'undefined' ? CYCLE : null;
-const VER = '15/11 n°2';
+const VER = '15/11 n°3';
 const DEF_TPL = [
   ['push', 'Push', ['bench', 'ohp', 'incl', 'lat', 'dips', 'tri']],
   ['pull', 'Pull', ['pull', 'row', 'pdown', 'face', 'curl', 'ham']],
@@ -532,13 +532,13 @@ function vCycle() {
     <div class="bar" style="margin:10px 0 6px"><i style="width:${100 * nD / n}%"></i></div>
     <b>${nD} / ${n} séances faites</b>${CYC.note ? `<div class="note">${esc(CYC.note)}</div>` : ''}</div>
   ${A ? `<div class="card banner"><div class="row sp nw"><div class="grow"><b>Séance en cours</b><div class="mut">${esc(A.name)}</div></div><button class="p" data-tab="seance">Reprendre</button></div></div>` : ''}
-  ${nx ? `<div class="card"><div class="mut">Prochaine séance</div><h2 style="font-size:24px;margin:2px 0 6px">${esc(nx.name)}</h2>
+  ${nx ? `<div class="card hero"><div class="mut">Prochaine séance</div><h2 style="font-size:24px;margin:2px 0 6px">${esc(nx.name)}</h2>
     <div class="mut">${nx.items.map(([id]) => esc(ex(id).name)).join(' · ')}</div>
     <button class="p blk" style="margin-top:12px;min-height:54px;font-size:18px" data-act="cstart" data-id="${nx.id}">Démarrer ${esc(nx.name)}</button></div>`
     : `<div class="card banner"><b>Semaine terminée</b><div class="mut">Les ${n} séances sont faites.</div></div>`}
   <h3>Séances de la semaine</h3>
   <div class="list">${CYC.sessions.map(cs => { const d = cycDone(cs.id);
-    return `<button data-act="cview" data-id="${cs.id}"><span class="grow">${esc(cs.name)}<br><span class="mut">${d ? 'Faite ' + fr(d.date) + (d.diff && d.diff.length ? ' · ' + d.diff.length + ' écart' + (d.diff.length > 1 ? 's' : '') : ' · conforme') : cs.items.length + ' exercices'}</span></span><span class="${d ? 'acc b' : 'mut'}">${d ? '✓' : 'Voir'}</span></button>`; }).join('')}</div>
+    return `<button class="${d ? 'ok' : ''}" data-act="cview" data-id="${cs.id}"><span class="grow">${esc(cs.name)}<br><span class="mut">${d ? 'Faite ' + fr(d.date) + (d.diff && d.diff.length ? ' · ' + d.diff.length + ' écart' + (d.diff.length > 1 ? 's' : '') : ' · conforme') : cs.items.length + ' exercices'}</span></span><span class="${d ? 'acc b' : 'mut'}">${d ? '✓' : 'Voir'}</span></button>`; }).join('')}</div>
   <p class="mut" style="margin-top:14px">Les séances hors programme se lancent depuis l'onglet Séance.<br>Version ${VER}</p>`;
 }
 function cycleSheet(sid) {
@@ -583,7 +583,7 @@ function vSeance() {
     }).join('');
     return `<h1>Séance</h1>${backupBanner()}${paused ? '<h3>En pause</h3>' + paused : ''}
     ${isIOS && !standalone() ? `<div class="card banner"><b>Installe l'app</b><div class="mut">Dans Safari : bouton Partager, puis « Sur l'écran d'accueil ». Plein écran, hors ligne, et stockage plus durable.</div></div>` : ''}
-    ${nx ? `<div class="card"><div class="mut">Prochaine séance de la rotation</div><h2 style="font-size:24px;margin:2px 0 6px">${esc(nx.name)}</h2>
+    ${nx ? `<div class="card hero"><div class="mut">Prochaine séance de la rotation</div><h2 style="font-size:24px;margin:2px 0 6px">${esc(nx.name)}</h2>
       <div class="mut">${nx.items.map(it => esc(ex(it.exId).name)).join(' · ') || 'Modèle vide'}</div>
       <button class="p blk" style="margin-top:12px;min-height:54px;font-size:18px" data-act="start" data-id="${nx.id}">Démarrer ${esc(nx.name)}</button></div>` : ''}
     <h3>Autres séances</h3>
