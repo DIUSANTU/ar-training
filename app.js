@@ -131,7 +131,10 @@ const DEF_EX = [
   ['dragon', 'Dragon flag', 'Abdos', '', 'P', 'bw', 3, 8, 2.5, 120],
   ['crunchcable', 'Crunch poulie', 'Abdos', '', 'C', 'load', 10, 15, 5, 60],
   ['crunchmach', 'Crunch machine', 'Abdos', '', 'M', 'load', 10, 15, 5, 60]
-].map(([id, name, muscle, sec, eq, type, repMin, repMax, inc, rest, bar]) => ({ id, name, muscle, sec: sec ? sec.split(',') : [], eq: EQ_CODE[eq], type, bar: !!bar, repMin, repMax, inc, rest, note: '', archived: false }));
+].map(mkEx);
+function mkEx([id, name, muscle, sec, eq, type, repMin, repMax, inc, rest, bar]) { return { id, name, muscle, sec: sec ? sec.split(',') : [], eq: EQ_CODE[eq], type, bar: !!bar, repMin, repMax, inc, rest, note: '', archived: false }; }
+// Programme du cycle (cycle.js) : absent = l'appli fonctionne en mode libre seul
+const CYC = typeof CYCLE !== 'undefined' ? CYCLE : null;
 const DEF_TPL = [
   ['push', 'Push', ['bench', 'ohp', 'incl', 'lat', 'dips', 'tri']],
   ['pull', 'Pull', ['pull', 'row', 'pdown', 'face', 'curl', 'ham']],
@@ -190,6 +193,7 @@ function normalize(s) {
   });
   // ajoute les exercices de la bibliothèque apparus dans une nouvelle version (sans toucher aux existants)
   DEF_EX.forEach(def => { if (!s.exercises.some(e => e.id === def.id)) s.exercises.push(clone(def)); });
+  if (CYC) CYC.exercises.map(mkEx).forEach(def => { if (!s.exercises.some(e => e.id === def.id)) s.exercises.push(def); });
   s.templates = Array.isArray(s.templates) ? s.templates : d.templates;
   s.sessions = (s.sessions || []).sort((a, b) => (a.start || 0) - (b.start || 0));
   if (s.active === undefined) s.active = null;
@@ -300,7 +304,9 @@ function suggest(exId) {
   return { kg: fmtIn(kg), reps: tr, why: minR < e.repMin ? `Sous la plage (${minR} reps) : garde la charge` : `Même charge, vise ${tr} reps` };
 }
 function placeholder(e, en, j, c) {
-  const s = en.sets[j], p = prevSet(c.last, en, j);
+  const s = en.sets[j];
+  if (s.pk !== undefined) return { kg: s.pk, reps: s.pn }; // série prévue par le cycle
+  const p = prevSet(c.last, en, j);
   if (s.t !== 'w' && s.t !== 'd' && c.sug) return { kg: c.sug.kg, reps: c.sug.reps, sec: c.sug.sec };
   return p ? { kg: fmtIn(p.kg), reps: p.reps, sec: p.sec } : {};
 }
@@ -392,28 +398,98 @@ function editSession(id) {
   S.active = Object.assign(clone(se), { id: uid(), editOf: se.id, restEnd: 0, restTotal: 0 });
   save(); R.tab = 'seance'; R.view = ''; render(); window.scrollTo(0, 0);
 }
+// =============== Cycle (programme chargé depuis cycle.js) ===============
+const isRange = v => /\d-\d/.test(String(v));
+const offPlan = (val, p) => { if (isRange(p)) { const [lo, hi] = String(p).split('-').map(num); return val < lo || val > hi; } return val !== num(p); };
+function parsePlan(spec) {
+  return spec.split('/').map(tok => {
+    const m = tok.trim().match(/^(w\s+)?(\d+)x([\d-]+)@([\d.,-]+)(?:\s+(\d+):(\d\d))?$/);
+    if (!m) throw new Error('Série illisible dans cycle.js : ' + tok);
+    return { w: !!m[1], n: +m[2], reps: m[3], kg: m[4].replace(/\./g, ','), rest: m[5] ? +m[5] * 60 + +m[6] : 0 };
+  });
+}
+function planSets(spec) {
+  const out = [];
+  parsePlan(spec).forEach(p => { for (let k = 0; k < p.n; k++) out.push(Object.assign(blankSet(p.w ? 'w' : 'n'), { pk: p.kg, pn: p.reps, ps: p.rest })); });
+  return out;
+}
+function planTxt(spec) { return parsePlan(spec).map(p => `${p.n > 1 ? p.n + '×' : ''}${p.reps}@${p.kg} kg${p.rest ? ` (${Math.floor(p.rest / 60)}'${String(p.rest % 60).padStart(2, '0')})` : ''}`).join(' / '); }
+function itemTxt(spec) { return typeof spec === 'string' ? planTxt(spec) : `${spec.emom} min · ${spec.reps} reps au départ de chaque minute`; }
+const cycDone = id => S.sessions.filter(se => se.cyc === CYC.id && se.cycS === id).pop();
+function startCycle(sid) {
+  const cs = CYC && CYC.sessions.find(x => x.id === sid); if (!cs) return;
+  if (S.active) { toast('Une séance est déjà en cours'); R.tab = 'seance'; return render(); }
+  begin(cs.name, '', () => cs.items.map(([exId, spec, note]) => typeof spec === 'string'
+    ? { exId, group: '', plan: spec, pnote: note || '', sets: planSets(spec) }
+    : { exId, group: '', emom: spec.emom, pnote: note || '', sets: Array.from({ length: spec.emom }, () => Object.assign(blankSet('n'), { pk: '0', pn: String(spec.reps), ps: 0 })) }));
+  S.active.cyc = CYC.id; S.active.cycS = sid; save();
+}
+// Écarts entre le prévu et le fait, calculés à la fin de la séance
+function cycDiff(A) {
+  const out = [];
+  A.entries.forEach(en => {
+    if ((!en.plan && !en.emom) || !en.sets.some(isWork)) return; // rien de fait : signalé plus bas comme « non fait »
+    const e = ex(en.exId);
+    if (en.emom) { const r = en.sets.filter(isWork).reduce((t, s) => t + num(s.reps), 0), pr = en.emom * num(en.sets[0].pn); if (r !== pr) out.push(`${e.name} : ${r} reps sur ${pr} prévues`); return; }
+    const pl = en.sets.filter(s => s.pk !== undefined && s.t !== 'w'), bits = [];
+    const miss = pl.filter(s => !isWork(s)).length;
+    if (miss) bits.push(`${miss} série${miss > 1 ? 's' : ''} non faite${miss > 1 ? 's' : ''}`);
+    pl.filter(s => isWork(s) && (offPlan(num(s.kg), s.pk) || offPlan(num(s.reps), s.pn))).forEach(s => bits.push(`fait ${num(s.reps)}@${fmtIn(s.kg)} (prévu ${s.pn}@${s.pk})`));
+    const extra = en.sets.filter(s => s.pk === undefined && isWork(s)).length;
+    if (extra) bits.push(`${extra} série${extra > 1 ? 's' : ''} en plus`);
+    if (bits.length) out.push(e.name + ' : ' + bits.join(', '));
+  });
+  const cs = CYC && CYC.sessions.find(x => x.id === A.cycS);
+  if (cs) cs.items.forEach(([id]) => { if (!A.entries.some(en => en.exId === id && (en.plan || en.emom) && en.sets.some(isWork))) out.push(ex(id).name + ' : non fait'); });
+  A.entries.forEach(en => { if (!en.plan && !en.emom && en.sets.some(isWork)) out.push(ex(en.exId).name + ' : ajouté (hors plan)'); });
+  return out;
+}
+function sessText(se) {
+  const dur = se.end && se.start ? ' · ' + Math.round((se.end - se.start) / 6e4) + ' min' : '';
+  const lines = [`${se.name} · ${fr(se.date)}${dur} · poids ${fmtIn(bwOf(se))} kg`];
+  se.entries.forEach(en => { const e = ex(en.exId), w = en.sets.filter(isWork);
+    if (en.emom) lines.push(`${e.name} : ${w.length} min, ${w.reduce((t, s) => t + num(s.reps), 0)} reps`);
+    else if (w.length) lines.push(`${e.name} : ${w.map(s => setTxt(e, s) + (has(s.rir) ? ' RIR ' + s.rir : '')).join(' · ')}`); });
+  if (se.cyc) lines.push(se.diff && se.diff.length ? 'Écarts au plan : ' + se.diff.join(' ; ') : 'Conforme au plan');
+  if (se.note) lines.push('Note : ' + se.note);
+  return lines.join('\n');
+}
+
 function finishWorkout(bw, note) {
   const A = S.active;
   A.bw = bw || A.bw; A.note = note || '';
-  A.entries = A.entries.map(en => ({ exId: en.exId, group: en.group, sets: en.sets.filter(s => s.done && (num(s.reps) > 0 || num(s.sec) > 0)) })).filter(en => en.sets.length);
+  const diff = A.cyc ? (A.editOf ? A.diff || [] : cycDiff(A)) : null;
+  A.entries = A.entries.map(en => Object.assign({ exId: en.exId, group: en.group, sets: en.sets.filter(s => s.done && (num(s.reps) > 0 || num(s.sec) > 0)) }, en.plan ? { plan: en.plan } : {}, en.emom ? { emom: en.emom } : {})).filter(en => en.sets.length);
   cleanGroups(A.entries);
   const out = { id: A.editOf || A.id, date: A.date, tplId: A.tplId, name: A.name, start: A.start, end: A.editOf ? A.end : Date.now(), bw: A.bw, note: A.note, entries: A.entries };
+  if (A.cyc) Object.assign(out, { cyc: A.cyc, cycS: A.cycS, diff });
   if (!out.entries.length) return toast('Aucune série validée');
   if (A.editOf) { const k = S.sessions.findIndex(s => s.id === A.editOf); if (k >= 0) S.sessions[k] = out; else S.sessions.push(out); }
   else { S.sessions.push(out); S.settings.bw = out.bw; }
   const nPR = out.entries.reduce((t, en) => t + en.sets.filter(s => s.pr && s.pr.length).length, 0);
   S.active = null; closeSheet(); unwake(); save(true); snapshot();
-  R.tab = 'hist'; render(); window.scrollTo(0, 0);
+  R.tab = out.cyc && !A.editOf ? 'cycle' : 'hist'; render(); window.scrollTo(0, 0);
   toast(A.editOf ? 'Séance modifiée' : `Séance enregistrée${nPR ? ' · ' + nPR + ' record' + (nPR > 1 ? 's' : '') : ''}`);
 }
 
 // Chrono de repos : basé sur l'heure de fin (survit au verrouillage et à la fermeture de l'app)
-let warned = false;
+let warned = false, emomM = -1, emomW = -1;
+function tickEmom() {
+  const A = S.active; if (!A || !A.emom) return;
+  const en = A.entries[A.emom.i], tot = ((en && en.emom) || 10) * 60, el = (Date.now() - A.emom.start) / 1000;
+  if (!en || !en.emom) { A.emom = null; save(); return; } // l'exercice a été déplacé ou retiré
+  if (el >= tot) { const i = A.emom.i; A.emom = null; save(); beep(3, 880); if (navigator.vibrate) navigator.vibrate([200, 100, 200]); toast('EMOM terminé'); renderCard(i); return; }
+  const m = Math.floor(el / 60), left = 60 - (el % 60);
+  if (m !== emomM) { emomM = m; beep(2, 1100); if (navigator.vibrate) navigator.vibrate(150); renderCard(A.emom.i); }
+  else if (left <= 3.2 && emomW !== m) { emomW = m; beep(1, 660); }
+  const c = $('#emomclk'); if (c) c.textContent = `Minute ${m + 1}/${tot / 60} · ${mmss(Math.ceil(left))}`;
+}
 function startRest(sec) { const A = S.active; A.restEnd = Date.now() + sec * 1000; A.restTotal = sec; warned = false; save(); tick(); }
 function stopRest() { if (S.active) { S.active.restEnd = 0; save(); } $('#rest').style.display = 'none'; }
 function tick() {
   const A = S.active, el = $('#el'), bar = $('#rest');
   if (A && el && !A.editOf) el.textContent = mmss((Date.now() - A.start) / 1000);
+  tickEmom();
   if (!A || !A.restEnd) { bar.style.display = 'none'; return; }
   const left = (A.restEnd - Date.now()) / 1000;
   if (left <= 0) {
@@ -429,21 +505,61 @@ function tick() {
 }
 
 // =============== Vues ===============
-const R = { tab: 'seance', view: '', id: '', range: 90, pt: null, q: '', mus: '', cat: '', pmus: '', pcat: '', arch: false, pick: null };
+const R = { tab: CYC ? 'cycle' : 'seance', view: '', id: '', range: 90, pt: null, q: '', mus: '', cat: '', pmus: '', pcat: '', arch: false, pick: null };
 const ICON = {
+  cycle: '<path d="M4 5h16v15H4zM4 10h16M9 3v4M15 3v4M8 15l2.5 2.5L16 12.5"/>',
   seance: '<path d="M6 7v10M18 7v10M3 9v6M21 9v6M6 12h12"/>',
   hist: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   prog: '<path d="M4 19h16M5 15l4-4 3 3 6-7"/>',
   ex: '<path d="M4 6h16M4 12h16M4 18h10"/>',
   set: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>'
 };
-const TABS = [['seance', 'Séance'], ['hist', 'Historique'], ['prog', 'Progrès'], ['ex', 'Exercices'], ['set', 'Réglages']];
+const TABS = (CYC ? [['cycle', 'Cycle']] : []).concat([['seance', 'Séance'], ['hist', 'Historique'], ['prog', 'Progrès'], ['ex', 'Exercices'], ['set', 'Réglages']]);
 function render() {
   $('#nav').innerHTML = TABS.map(([id, l]) => `<button data-tab="${id}" class="${id === R.tab ? 'on' : ''}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON[id]}</svg>${l}${id === 'seance' && S.active && R.tab !== 'seance' ? ' •' : ''}</button>`).join('');
-  const v = R.view === 'exd' ? vExDetail : R.view === 'tpl' ? vTplEdit : { seance: vSeance, hist: vHist, prog: vProg, ex: vEx, set: vSet }[R.tab];
+  const v = R.view === 'exd' ? vExDetail : R.view === 'tpl' ? vTplEdit : { cycle: vCycle, seance: vSeance, hist: vHist, prog: vProg, ex: vEx, set: vSet }[R.tab];
   $('#app').innerHTML = v();
   tick();
   if (R.tab === 'set' && !R.view) fillSnaps();
+}
+
+// ---------- Cycle ----------
+function vCycle() {
+  const A = S.active, n = CYC.sessions.length, nD = CYC.sessions.filter(cs => cycDone(cs.id)).length, nx = CYC.sessions.find(cs => !cycDone(cs.id));
+  return `<h1>Cycle</h1>
+  <div class="card"><div class="mut">${fr(CYC.from)} → ${fr(CYC.to)}</div><h2 style="margin-top:2px">${esc(CYC.title)}</h2>
+    <div class="bar" style="margin:10px 0 6px"><i style="width:${100 * nD / n}%"></i></div>
+    <b>${nD} / ${n} séances faites</b>${CYC.note ? `<div class="note">${esc(CYC.note)}</div>` : ''}</div>
+  ${A ? `<div class="card banner"><div class="row sp nw"><div class="grow"><b>Séance en cours</b><div class="mut">${esc(A.name)}</div></div><button class="p" data-tab="seance">Reprendre</button></div></div>` : ''}
+  ${nx ? `<div class="card"><div class="mut">Prochaine séance</div><h2 style="font-size:24px;margin:2px 0 6px">${esc(nx.name)}</h2>
+    <div class="mut">${nx.items.map(([id]) => esc(ex(id).name)).join(' · ')}</div>
+    <button class="p blk" style="margin-top:12px;min-height:54px;font-size:18px" data-act="cstart" data-id="${nx.id}" ${A ? 'disabled' : ''}>Démarrer ${esc(nx.name)}</button></div>`
+    : `<div class="card banner"><b>Semaine terminée</b><div class="mut">Les ${n} séances sont faites.</div></div>`}
+  <h3>Séances de la semaine</h3>
+  <div class="list">${CYC.sessions.map(cs => { const d = cycDone(cs.id);
+    return `<button data-act="cview" data-id="${cs.id}"><span class="grow">${esc(cs.name)}<br><span class="mut">${d ? 'Faite ' + fr(d.date) + (d.diff && d.diff.length ? ' · ' + d.diff.length + ' écart' + (d.diff.length > 1 ? 's' : '') : ' · conforme') : cs.items.length + ' exercices'}</span></span><span class="${d ? 'acc b' : 'mut'}">${d ? '✓' : 'Voir'}</span></button>`; }).join('')}</div>
+  <p class="mut" style="margin-top:14px">Les séances hors programme se lancent depuis l'onglet Séance.</p>`;
+}
+function cycleSheet(sid) {
+  const cs = CYC.sessions.find(x => x.id === sid); if (!cs) return;
+  const d = cycDone(sid);
+  sheet(`<h2>${esc(cs.name)}</h2>
+  ${cs.items.map(([id, spec, note], k) => `<div style="margin-top:10px"><b>${k + 1}. ${esc(ex(id).name)}</b><div class="mut">${esc(itemTxt(spec))}${note ? ' · ' + esc(note) : ''}</div></div>`).join('')}
+  ${d ? `<div class="note">Faite ${fr(d.date)} · ${d.diff && d.diff.length ? esc(d.diff.join(' ; ')) : 'conforme au plan'}</div>` : ''}
+  <button class="p blk" style="margin-top:14px" data-act="cstart" data-id="${sid}" ${S.active ? 'disabled' : ''}>${d ? 'Refaire cette séance' : 'Démarrer cette séance'}</button>`);
+}
+function emomCard(i) {
+  const A = S.active, en = A.entries[i], e = ex(en.exId), run = A.emom && A.emom.i === i;
+  const cur = run ? Math.floor((Date.now() - A.emom.start) / 6e4) : -1;
+  const tot = en.sets.filter(isWork).reduce((t, s) => t + num(s.reps), 0);
+  return `<div class="card" id="en-${i}"><div class="row sp nw"><h2 class="grow" style="margin:0">${esc(e.name)}</h2>
+    <button class="ic" data-act="mv" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>↑</button>
+    <button class="ic" data-act="mv" data-i="${i}" data-dir="1" ${i === A.entries.length - 1 ? 'disabled' : ''}>↓</button></div>
+  <div class="goal mut">Prévu : <b>${en.emom} min · ${esc(en.sets[0].pn)} reps au départ de chaque minute</b>${en.pnote ? ' · ' + esc(en.pnote) : ''}</div>
+  <div class="row sp nw" style="margin-top:10px"><b id="emomclk" style="font-size:22px;font-variant-numeric:tabular-nums">${run ? '' : 'Prêt'}</b>
+    <button class="${run ? '' : 'p'}" data-act="${run ? 'emom-stop' : 'emom-go'}" data-i="${i}">${run ? 'Arrêter' : 'Démarrer l\'EMOM'}</button></div>
+  <div class="emom">${en.sets.map((s, j) => `<button class="${s.done ? 'on' : ''}${j === cur ? ' cur' : ''}" data-act="emin" data-i="${i}" data-j="${j}"><span>${j + 1}</span><b>${s.done ? num(s.reps) : '·'}</b></button>`).join('')}</div>
+  <div class="mut" style="margin-top:8px">${tot} reps validées. Touche une minute pour la valider, retouche-la pour corriger le nombre de reps.</div></div>`;
 }
 
 // ---------- Séance ----------
@@ -482,15 +598,18 @@ function vSeance() {
   ${A.entries.map((en, i) => entryCard(i)).join('')}
   <button class="blk" data-act="pick" data-mode="add">+ Ajouter un exercice</button>
   <div class="row" style="margin-top:12px">
-    ${!A.editOf ? (A.tplId && tpl(A.tplId) ? '<button class="grow" data-act="savetpl">Mettre à jour le modèle</button>' : '<button class="grow" data-act="newtpl-from">Enregistrer comme modèle</button>') : ''}
+    ${!A.editOf && !A.cyc ? (A.tplId && tpl(A.tplId) ? '<button class="grow" data-act="savetpl">Mettre à jour le modèle</button>' : '<button class="grow" data-act="newtpl-from">Enregistrer comme modèle</button>') : ''}
     <button class="d grow" data-act="leave">Quitter</button></div>`;
 }
 function cardCtx(en) { return { last: prevEntry(en.exId), sug: suggest(en.exId) }; }
 function entryCard(i) {
-  const A = S.active, en = A.entries[i], e = ex(en.exId), c = cardCtx(en), t = e.type === 'time';
+  const A = S.active, en = A.entries[i];
+  if (en.emom) return emomCard(i);
+  const e = ex(en.exId), c = cardCtx(en), t = e.type === 'time';
   const prevG = A.entries[i - 1] && A.entries[i - 1].group, ss = en.group && (prevG === en.group || (A.entries[i + 1] && A.entries[i + 1].group === en.group));
   let goal;
-  if (c.sug) goal = `Objectif : <b>${t ? c.sug.sec + ' s' : setTxt(e, { kg: c.sug.kg, reps: c.sug.reps })}</b> · ${c.sug.why}`;
+  if (en.plan) goal = `Prévu : <b>${esc(planTxt(en.plan))}</b>${en.pnote ? '<br>' + esc(en.pnote) : ''}`;
+  else if (c.sug) goal = `Objectif : <b>${t ? c.sug.sec + ' s' : setTxt(e, { kg: c.sug.kg, reps: c.sug.reps })}</b> · ${c.sug.why}`;
   else goal = `Première fois · plage ${e.repMin}–${e.repMax} ${t ? 's' : 'reps'}`;
   let n = 0;
   return `<div class="card ${ss ? 'ss' : ''}" id="en-${i}">
@@ -531,7 +650,9 @@ function vHist() {
       <div class="mut">${fr(se.date)} · ${dur}${nW} séries${nPR ? ` · <span class="acc b">${nPR} PR</span>` : ''}</div></div>
       <button class="ic" data-act="sesmenu" data-id="${se.id}">⋯</button></div>
       ${se.entries.map(en => { const e = ex(en.exId), w = en.sets.filter(isWork);
+        if (en.emom) return `<div style="margin-top:8px"><b>${esc(e.name)}</b><div class="mut">${w.length} min · ${w.reduce((t, s) => t + num(s.reps), 0)} reps</div></div>`;
         return `<div style="margin-top:8px"><b>${esc(e.name)}</b>${en.group ? ` <span class="mut acc">${en.group}</span>` : ''}<div class="mut">${w.map(s => setTxt(e, s) + (has(s.rir) ? ' @' + s.rir : '') + (s.pr && s.pr.length ? ' <span class="prb">PR</span>' : '')).join(' · ') || 'échauffement seul'}</div></div>`; }).join('')}
+      ${se.cyc ? `<div class="note" style="border-color:${se.diff && se.diff.length ? '#f5a524' : '#2fbf71'}">${se.diff && se.diff.length ? '<b>Écarts au plan</b>\n' + esc(se.diff.join('\n')) : 'Conforme au plan'}</div>` : ''}
       ${se.note ? `<div class="note">${esc(se.note)}</div>` : ''}</div>`;
   });
   return out;
@@ -864,6 +985,25 @@ document.addEventListener('click', ev => {
     case 'ask-yes': { const cb = askCb; closeSheet(); if (cb) cb(); return; }
     case 'flash-off': $('#flash').classList.remove('on'); return;
     case 'start': startTpl(d.id); return;
+    case 'cstart': closeSheet(); startCycle(d.id); return;
+    case 'cview': cycleSheet(d.id); return;
+    case 'emom-go': A.emom = { i, start: Date.now() }; emomM = -1; emomW = -1; stopRest(); save(); renderCard(i); tick(); return;
+    case 'emom-stop': A.emom = null; save(); renderCard(i); return;
+    case 'emin': {
+      const s = A.entries[i].sets[j];
+      if (!s.done) { s.kg = '0'; s.reps = s.pn; s.done = true; save(); renderCard(i); return; }
+      sheet(`<h2>Minute ${j + 1} : reps faites</h2><div class="g2" style="grid-template-columns:repeat(4,1fr)">${[1, 2, 3, 4, 5, 6, 7, 8].map(r => `<button class="${num(s.reps) === r ? 'p' : ''}" data-act="emin-set" data-i="${i}" data-j="${j}" data-r="${r}">${r}</button>`).join('')}</div>
+      <button class="d blk" style="margin-top:10px" data-act="emin-set" data-i="${i}" data-j="${j}" data-r="0">Minute non faite</button>`);
+      return;
+    }
+    case 'emin-set': { const s = A.entries[i].sets[j]; if (+d.r) { s.reps = d.r; s.done = true; } else { s.reps = ''; s.done = false; } closeSheet(); save(); renderCard(i); return; }
+    case 'scopy': {
+      const se = S.sessions.find(s => s.id === d.id); closeSheet(); if (!se) return;
+      const txt = sessText(se);
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(() => toast('Résumé copié'), () => sheet(`<h2>Résumé</h2><textarea rows="12" readonly>${esc(txt)}</textarea>`));
+      else sheet(`<h2>Résumé</h2><textarea rows="12" readonly>${esc(txt)}</textarea>`);
+      return;
+    }
     case 'finish': {
       const nW = A.entries.reduce((t, en) => t + en.sets.filter(isWork).length, 0), nU = A.entries.reduce((t, en) => t + en.sets.filter(s => !s.done).length, 0);
       const nPR = A.entries.reduce((t, en) => t + en.sets.filter(s => s.pr && s.pr.length).length, 0);
@@ -921,13 +1061,17 @@ document.addEventListener('click', ev => {
       const en = A.entries[i], s = en.sets[j], e = ex(en.exId);
       if (!s.done) {
         const p = placeholder(e, en, j, cardCtx(en));
+        // une fourchette prévue (6-8 reps, 40-45 kg) ne se valide pas d'un appui : il faut la valeur réelle
+        if (!has(s.kg) && isRange(p.kg)) return toast('Indique la charge utilisée');
+        if (!has(s.reps) && isRange(p.reps)) return toast('Indique les répétitions faites');
         if (!has(s.kg) && has(p.kg)) s.kg = String(p.kg);
         if (e.type === 'time') { if (!has(s.sec) && has(p.sec)) s.sec = String(p.sec); if (!num(s.sec)) return toast('Indique la durée'); }
         else { if (!has(s.reps) && has(p.reps)) s.reps = String(p.reps); if (!num(s.reps)) return toast('Indique les répétitions'); }
         if (e.type === 'load' && !has(s.kg)) return toast('Indique la charge');
         s.done = true; checkPR(i, j);
         const nx = A.entries[i + 1], ssMid = en.group && nx && nx.group === en.group;
-        if (!A.editOf) { if (ssMid) toast('Superset : enchaîne ' + ex(nx.exId).name); else startRest(s.t === 'w' ? 60 : (e.rest || S.settings.rest)); }
+        const rs = s.ps !== undefined ? s.ps : (s.t === 'w' ? 60 : (e.rest || S.settings.rest));
+        if (!A.editOf) { if (ssMid) toast('Superset : enchaîne ' + ex(nx.exId).name); else if (rs > 0) startRest(rs); }
       } else { s.done = false; s.pr = []; }
       save(); renderCard(i); return;
     }
@@ -958,7 +1102,7 @@ document.addEventListener('click', ev => {
     case 'rest-': if (A && A.restEnd) { A.restEnd -= 15000; A.restTotal = Math.max(1, A.restTotal - 15); save(); tick(); } return;
     case 'rest-stop': stopRest(); return;
     // historique
-    case 'sesmenu': sheet(`<h2>Séance</h2><div class="list"><button data-act="sedit" data-id="${d.id}"><span>Modifier</span></button><button data-act="srep" data-id="${d.id}"><span>Refaire cette séance</span></button><button data-act="sdel" data-id="${d.id}"><span class="acc">Supprimer</span></button></div>`); return;
+    case 'sesmenu': sheet(`<h2>Séance</h2><div class="list"><button data-act="scopy" data-id="${d.id}"><span>Copier le résumé</span><span class="mut">prévu / fait</span></button><button data-act="sedit" data-id="${d.id}"><span>Modifier</span></button><button data-act="srep" data-id="${d.id}"><span>Refaire cette séance</span></button><button data-act="sdel" data-id="${d.id}"><span class="acc">Supprimer</span></button></div>`); return;
     case 'sedit': closeSheet(); editSession(d.id); return;
     case 'srep': closeSheet(); repeatSession(d.id); return;
     case 'sdel': ask('Supprimer cette séance ?', 'Supprimer', () => { S.sessions = S.sessions.filter(s => s.id !== d.id); save(); render(); }, 'Une sauvegarde automatique reste disponible dans Réglages.'); return;

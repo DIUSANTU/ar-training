@@ -102,6 +102,11 @@ label.f input,label.f select,label.f textarea{margin-top:4px;color:var(--txt)}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .timer{font-variant-numeric:tabular-nums;color:var(--mut);font-size:14px}
 .plates{display:flex;gap:3px;align-items:center;justify-content:center;margin:14px 0}
+.emom{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:10px}
+.emom button{padding:4px 0;min-height:54px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.15}
+.emom button span{font-size:11px;color:var(--mut)}.emom button b{font-size:18px}
+.emom button.on{background:var(--acc);border-color:var(--acc);color:#fff}.emom button.on span{color:#fff}
+.emom button.cur{outline:2px solid #fff;outline-offset:1px}
 .plates span{background:var(--acc);color:#fff;border-radius:4px;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;width:26px}
 </style>
 </head>
@@ -112,6 +117,7 @@ label.f input,label.f select,label.f textarea{margin-top:4px;color:var(--txt)}
 <div id="sheet"></div>
 <div id="toast"></div>
 <nav id="nav"></nav>
+<script src="cycle.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
