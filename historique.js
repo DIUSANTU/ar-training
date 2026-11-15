@@ -1,7 +1,8 @@
 'use strict';
 /* Séances réalisées avant l'usage de l'appli : méso 1, semaines 1 à 3 (26/10 → 14/11/2026).
    Sources : journal « prévu vs fait » pour le mouvement clé (charge, reps, RIR réel) et pages Notion de chaque semaine
-   pour le reste de la séance, réalisé tel qu'écrit (confirmé par Adrien le 15/11/2026), sauf séances condensées (mouvements clés seuls).
+   pour le reste des séances de force S1 à S3, réalisé tel qu'écrit (confirmé par Adrien le 15/11/2026).
+   Séances volume S4 à S6 et séances condensées : mouvement clé seul, rien d'autre n'est documenté.
    Quand le plan donne une fourchette (6-8 reps, 40-45 kg), c'est le bas de la fourchette qui est retenu, faute de valeur notée.
    Les notes et remarques de séance ne sont pas reprises (dépôt public).
    Importées une seule fois (voir seedHistory dans app.js) ; une séance modifiée ou supprimée ensuite n'est plus touchée.
@@ -9,17 +10,15 @@
 const H_PUSH = [['pecpoulie', '3x10@12.5'], ['latpoulie1', '3x12@10']];
 const H_PULL = [['rowwide', '3x8@50'], ['rowclose1', '2x8@70'], ['latpoulie1', '3x10@10'], ['ham', '2x8@22'], ['curlseat', '2x8@16']];
 const H_LEGS = [['lcurl1', '3x6@20'], ['legext1', '3x8@40'], ['abdstand', '3x8@60'], ['crunchpoulie', '3x12@35']];
-const H_PUSHV = [['latpoulie1', '3x12@10'], ['tri1', '3x8@15'], ['ohtri', '3x8@14']];
-const H_LEGSV = [['hip', '3x8@250'], ['lcurl1', '3x8@15'], ['legext1', '3x8@40'], ['crunchpoulie', '3x12@35']];
 const H_EMOM = ['emompull', [5, 5, 5, 5, 5, 5, 5, 5, 5, 5]];
-const H_DIPS = 'w 1x10@0 / w 1x5@20 / w 1x3@40 / w 1x1@50 / ', H_DIPSV = 'w 1x10@0 / w 1x5@20 / w 1x3@30 / ';
-const H_TRAC = 'w 1x10@0 / w 1x5@12.5 / w 1x3@17.5 / w 1x1@25 / ', H_TRACV = 'w 1x10@0 / w 1x5@10 / w 1x3@15 / ';
-const H_SQ = 'w 1x8@0 / w 1x6@60 / w 1x6@80 / w 1x5@100 / w 1x5@110 / ', H_SQV = 'w 1x8@0 / w 1x6@60 / w 1x6@70 / ';
+const H_DIPS = 'w 1x10@0 / w 1x5@20 / w 1x3@40 / w 1x1@50 / ';
+const H_TRAC = 'w 1x10@0 / w 1x5@12.5 / w 1x3@17.5 / w 1x1@25 / ';
+const H_SQ = 'w 1x8@0 / w 1x6@60 / w 1x6@80 / w 1x5@100 / w 1x5@110 / ';
 const H_CP = 'w 1x6@20 / ';
 
 const HISTORY = {
-  id: 'meso1-sem1-3-v2',
-  replaces: ['meso1-sem1-3'],
+  id: 'meso1-sem1-3-v3',
+  replaces: ['meso1-sem1-3', 'meso1-sem1-3-v2'],
   // Exercices du plan absents de la bibliothèque (même format que DEF_EX dans app.js)
   exercises: [
     ['cleanpress', 'Clean press', 'Épaules', 'Triceps,Dos', 'B', 'load', 6, 8, 2.5, 150, 1],
@@ -51,11 +50,11 @@ const HISTORY = {
     { d: '2026-10-28', cyc: 'm1s1', s: 's3', name: 'S3 Legs lourd', bw: 86.9, diff: [],
       items: [['squat', H_SQ + '3x5@120 / 1x5@100', 4], ...H_LEGS] },
     { d: '2026-10-30', cyc: 'm1s1', s: 's4', name: 'S4 Push volume', bw: 86.9, diff: [],
-      items: [['dips', H_DIPSV + '4x8@40', 3], ['cleanpress', H_CP + '3x6@35'], ...H_PUSHV] },
+      items: [['dips', '4x8@40', 3]] },
     { d: '2026-10-31', cyc: 'm1s1', s: 's5', name: 'S5 Pull volume', bw: 86.9, diff: [],
-      items: [['pull', H_TRACV + '4x6@22.5', 0], H_EMOM, ...H_PULL] },
+      items: [['pull', '4x6@22.5', 0]] },
     { d: '2026-11-01', cyc: 'm1s1', s: 's6', name: 'S6 Legs volume', bw: 86.9, diff: [],
-      items: [['squat', H_SQV + '5x5@110', 5], ...H_LEGSV] },
+      items: [['squat', '5x5@110', 5]] },
     // Semaine 2 — poids moyen 87,1 kg
     { d: '2026-11-02', cyc: 'm1s2', s: 's1', name: 'S1 Push lourd', bw: 87.1, diff: [],
       items: [['dips', H_DIPS + '3x5@60', 1], ['cleanpress', H_CP + '3x7@35'], ['devhalt', '3x6@44'], ...H_PUSH] },
@@ -64,7 +63,7 @@ const HISTORY = {
     { d: '2026-11-04', cyc: 'm1s2', s: 's3', name: 'S3 Legs lourd', bw: 87.1, diff: [],
       items: [['squat', H_SQ + '3x5@125 / 1x5@100', 3], ...H_LEGS] },
     { d: '2026-11-06', cyc: 'm1s2', s: 's4', name: 'S4 Push volume', bw: 87.1, diff: [],
-      items: [['dips', H_DIPSV + '4x9@40', 2], ['cleanpress', H_CP + '3x7@35'], ...H_PUSHV] },
+      items: [['dips', '4x9@40', 2]] },
     { d: '2026-11-07', cyc: 'm1s2', s: 's5', name: 'S5 + S6 condensées', bw: 87.1, diff: ['S5 et S6 condensées en une séance', 'Dips : non faits (dips volume la veille)'],
       items: [['pull', '4x6@22.5', 0], ['squat', '5x5@115'], H_EMOM] },
     // Semaine 3 — poids moyen 87,3 kg

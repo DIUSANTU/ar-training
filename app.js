@@ -346,7 +346,7 @@ DEF_EX.push(...[
 ].map(mkEx));
 // Programme du cycle (cycle.js) : absent = l'appli fonctionne en mode libre seul
 const CYC = typeof CYCLE !== 'undefined' ? CYCLE : null;
-const VER = '15/11 n°8';
+const VER = '15/11 n°9';
 const DEF_TPL = [
   ['push', 'Push', ['bench', 'ohp', 'incl', 'lat', 'dips', 'tri']],
   ['pull', 'Pull', ['pull', 'row', 'pdown', 'face', 'curl', 'ham']],
@@ -915,8 +915,16 @@ function entryCard(i) {
     <select data-f="rir" data-i="${i}" data-j="${j}">${['', '0', '1', '2', '3', '4', '5'].map(v => `<option value="${v}" ${String(s.rir) === v ? 'selected' : ''}>${v === '' ? '–' : v === '5' ? '5+' : v}</option>`).join('')}</select>
     <button class="ok" data-act="done" data-i="${i}" data-j="${j}">✓</button></div>`;
   }).join('')}
-  <div class="row nw" style="margin-top:8px"><button class="grow" data-act="addset" data-i="${i}">+ Série</button>${t ? '' : `<button data-act="kgadj" data-i="${i}" data-d="-1.5">−1,5</button><button data-act="kgadj" data-i="${i}" data-d="1.5">+1,5</button>`}</div>
+  <div class="row nw" style="margin-top:8px"><button class="grow" data-act="addset" data-i="${i}">+ Série</button>${t ? '' : `<button data-act="kgadj" data-i="${i}" data-d="-1">− palier</button><button data-act="kgadj" data-i="${i}" data-d="1">+ palier</button>`}</div>
   ${lastDone >= 0 && !t ? `<div class="mut" style="margin-top:10px">RIR de la dernière série validée</div><div class="chips n10" style="margin-top:4px">${['0', '1', '2', '3', '4', '5'].map(v => `<button class="${String(en.sets[lastDone].rir) === v ? 'on' : ''}" data-act="rirset" data-i="${i}" data-j="${lastDone}" data-v="${v}">${v === '5' ? '5+' : v}</button>`).join('')}</div>` : ''}</div>`;
+}
+// Palier de charge. Lest (dips, tractions, muscle-up) : un seul petit disque à la fois, 1,5 ou 2,5 kg, en plus des disques de 5 kg
+// → 20 / 21,5 / 22,5 / 25 / 26,5 / 27,5… (jamais deux petits disques). Barre : pas de 5 kg. Machines et haltères : pas de 2,5 kg.
+function stepKg(e, kg, dir) {
+  if (e.type !== 'bw') return Math.max(0, Math.round((kg + dir * (e.bar ? 5 : 2.5)) * 100) / 100); // barre : un disque de 2,5 de chaque côté
+  const lad = []; for (let b = 0; b <= 200; b += 5) lad.push(b, b + 1.5, b + 2.5);
+  if (dir > 0) return lad.find(x => x > kg + 0.01);
+  const lower = lad.filter(x => x < kg - 0.01); return lower.length ? lower[lower.length - 1] : 0;
 }
 function renderCard(i) { const el = document.getElementById('en-' + i); if (el) el.outerHTML = entryCard(i); else render(); }
 
@@ -1381,9 +1389,9 @@ document.addEventListener('click', ev => {
     case 'pickrep': openPick('replace', i); return;
     case 'pickex': picked(d.id); return;
     case 'pickcreate': { const n = $('#pickq').value.trim(); if (!n) return; const e = Object.assign(exDefaults(), { name: n }); S.exercises.push(e); picked(e.id); toast('Exercice créé : règle son muscle dans sa fiche'); return; }
-    case 'kgadj': { // décale la charge des séries de travail restantes d'un petit disque (1,5 kg à sa salle)
+    case 'kgadj': { // décale d'un palier la charge des séries de travail restantes
       const en = A.entries[i], e = ex(en.exId), c = cardCtx(en);
-      en.sets.forEach((s, j) => { if (s.done || s.t === 'w') return; const p = placeholder(e, en, j, c); s.kg = fmtIn(Math.max(0, (has(s.kg) ? num(s.kg) : has(p.kg) ? num(p.kg) : 0) + +d.d)); });
+      en.sets.forEach((s, j) => { if (s.done || s.t === 'w') return; const p = placeholder(e, en, j, c); s.kg = fmtIn(stepKg(e, has(s.kg) ? num(s.kg) : has(p.kg) ? num(p.kg) : 0, +d.d)); });
       save(); renderCard(i); return; }
     case 'rirset': { const s = A.entries[i].sets[j]; s.rir = String(s.rir) === d.v ? '' : d.v; save(); renderCard(i); return; }
     case 'addset': { const s = A.entries[i].sets; const l = s[s.length - 1]; const ns = blankSet(l && l.t === 'w' ? 'n' : (l ? l.t : 'n')); s.push(ns); save(); renderCard(i); return; }

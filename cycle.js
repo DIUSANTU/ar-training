@@ -37,7 +37,7 @@ const CYCLE = {
       ['latpoulie1', '2x12@10 1:30']
     ] },
     { id: 's2', name: 'S2 Pull lourd', items: [
-      ['pull', 'w 1x10@0 1:30 / w 1x5@12.5 2:00 / w 1x3@17.5 2:30 / 3x5@24 3:30', '24 kg et non 23,75 : disques de 1,5 kg.'],
+      ['pull', 'w 1x10@0 1:30 / w 1x5@12.5 2:00 / w 1x3@17.5 2:30 / 3x5@22.5 3:30', '22,5 kg et non 23,75 : un seul petit disque.'],
       ['emompull', { emom: 10, reps: 5 }, 'Au poids du corps.'],
       ['cleanpress', 'w 1x6@20 1:00 / 2x6@35 2:30'],
       ['rowwide', '2x8@50 2:30', 'Charge par main.'],
