@@ -346,7 +346,7 @@ DEF_EX.push(...[
 ].map(mkEx));
 // Programme du cycle (cycle.js) : absent = l'appli fonctionne en mode libre seul
 const CYC = typeof CYCLE !== 'undefined' ? CYCLE : null;
-const VER = '15/11 n°4';
+const VER = '15/11 n°5';
 const DEF_TPL = [
   ['push', 'Push', ['bench', 'ohp', 'incl', 'lat', 'dips', 'tri']],
   ['pull', 'Pull', ['pull', 'row', 'pdown', 'face', 'curl', 'ham']],
@@ -411,6 +411,7 @@ function normalize(s) {
   if (s.active === undefined) s.active = null;
   s.paused = Array.isArray(s.paused) ? s.paused : [];
   s.lastExport = s.lastExport || 0;
+  s.coach = normalizeCoach(s.coach);
   return s;
 }
 // Migration depuis la première version (localStorage, RPE)
@@ -724,12 +725,13 @@ const ICON = {
   hist: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   prog: '<path d="M4 19h16M5 15l4-4 3 3 6-7"/>',
   ex: '<path d="M4 6h16M4 12h16M4 18h10"/>',
+  coach: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5M16 4.8a3.5 3.5 0 010 6.4M18 14.8c2 .7 3.2 2.4 3.6 5.2"/>',
   set: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>'
 };
-const TABS = (CYC ? [['cycle', 'Cycle']] : []).concat([['seance', 'Séance'], ['hist', 'Historique'], ['prog', 'Progrès'], ['ex', 'Exercices'], ['set', 'Réglages']]);
+const TABS = (CYC ? [['cycle', 'Cycle']] : []).concat([['seance', 'Séance'], ['hist', 'Historique'], ['prog', 'Progrès'], ['ex', 'Exercices'], ['coach', 'Coach'], ['set', 'Réglages']]);
 function render() {
   $('#nav').innerHTML = TABS.map(([id, l]) => `<button data-tab="${id}" class="${id === R.tab ? 'on' : ''}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON[id]}</svg>${l}${id === 'seance' && S.active && R.tab !== 'seance' ? ' •' : ''}</button>`).join('');
-  const v = R.view === 'exd' ? vExDetail : R.view === 'tpl' ? vTplEdit : { cycle: vCycle, seance: vSeance, hist: vHist, prog: vProg, ex: vEx, set: vSet }[R.tab];
+  const v = R.view === 'exd' ? vExDetail : R.view === 'tpl' ? vTplEdit : { cycle: vCycle, seance: vSeance, hist: vHist, prog: vProg, ex: vEx, coach: vCoach, set: vSet }[R.tab];
   $('#app').innerHTML = v();
   tick();
   if (R.tab === 'set' && !R.view) fillSnaps();
@@ -1188,10 +1190,11 @@ window.addEventListener('pagehide', flush);
 
 document.addEventListener('click', ev => {
   const tb = ev.target.closest('[data-tab]');
-  if (tb) { R.tab = tb.dataset.tab; R.view = ''; render(); window.scrollTo(0, 0); return; }
+  if (tb) { R.tab = tb.dataset.tab; R.view = ''; K.view = ''; render(); window.scrollTo(0, 0); return; }
   const b = ev.target.closest('[data-act]');
   if (!b || b.tagName === 'INPUT' || b.tagName === 'SELECT' || b.tagName === 'TEXTAREA') return;
   const d = b.dataset, A = S.active, i = +d.i, j = +d.j;
+  if (coachClick(d)) return;
   switch (d.act) {
     case 'close': closeSheet(); return;
     case 'ask-yes': { const cb = askCb; closeSheet(); if (cb) cb(); return; }
@@ -1353,6 +1356,7 @@ document.addEventListener('click', ev => {
 
 document.addEventListener('input', ev => {
   const t = ev.target, d = t.dataset;
+  if (coachInput(t)) return;
   if (d.f && S.active) { S.active.entries[+d.i].sets[+d.j][d.f] = t.value; save(); return; }
   if (t.id === 'pickq') { $('#picklist').innerHTML = pickList(); return; }
   if (t.id === 'exq') { R.q = t.value; $('#exlist').innerHTML = exList(); return; }
@@ -1360,6 +1364,7 @@ document.addEventListener('input', ev => {
 });
 document.addEventListener('change', ev => {
   const t = ev.target, d = t.dataset;
+  if (coachChange(t)) return;
   if (d.f && S.active) { S.active.entries[+d.i].sets[+d.j][d.f] = t.value; save(); return; }
   if (d.exf) {
     const e = ex(R.id), k = d.exf;
