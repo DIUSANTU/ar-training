@@ -346,7 +346,7 @@ DEF_EX.push(...[
 ].map(mkEx));
 // Programme du cycle (cycle.js) : absent = l'appli fonctionne en mode libre seul
 const CYC = typeof CYCLE !== 'undefined' ? CYCLE : null;
-const VER = '15/11 n°5';
+const VER = '15/11 n°6';
 const DEF_TPL = [
   ['push', 'Push', ['bench', 'ohp', 'incl', 'lat', 'dips', 'tri']],
   ['pull', 'Pull', ['pull', 'row', 'pdown', 'face', 'curl', 'ham']],
@@ -410,6 +410,9 @@ function normalize(s) {
   s.sessions = (s.sessions || []).sort((a, b) => (a.start || 0) - (b.start || 0));
   if (s.active === undefined) s.active = null;
   s.paused = Array.isArray(s.paused) ? s.paused : [];
+  s.cycles = s.cycles || {};
+  if (CYC) s.cycles[CYC.id] = { title: CYC.title, from: CYC.from, to: CYC.to, n: CYC.sessions.length,
+    sets: CYC.sessions.reduce((t, cs) => t + cs.items.reduce((u, it) => u + (typeof it[1] === 'string' ? parsePlan(it[1]).filter(x => !x.w).reduce((v, x) => v + x.n, 0) : it[1].emom), 0), 0) };
   s.lastExport = s.lastExport || 0;
   s.coach = normalizeCoach(s.coach);
   return s;
@@ -551,11 +554,19 @@ function checkPR(i, j) {
   }
   if (s.pr.length) { toast('Record ! ' + s.pr.join(' · ') + ' — ' + e.name); beep(2, 1320); if (navigator.vibrate) navigator.vibrate(80); }
 }
+// e1RM ajusté du RIR : les reps en réserve s'ajoutent aux reps faites (échelle RIR, Zourdos et al., 2016 ; Helms et al., 2016).
+// Sans RIR noté, ou au-delà de 12 reps + RIR, on retombe sur l'e1RM brut. Sert aux courbes : une décharge ne fait plus chuter la courbe.
+function e1rmR(e, s, bw) {
+  if (e.type === 'time') return 0;
+  const r = num(s.reps), rr = has(s.rir) ? num(s.rir) : 0;
+  if (!rr || r < 1 || r + rr > 12) return e1rm(e, s, bw);
+  return eff(e, s, bw) * (1 + (r + rr) / 30);
+}
 function sessMetric(e, se, en) {
   const bw = bwOf(se), work = en.sets.filter(isWork);
   if (!work.length) return null;
   if (e.type === 'time') { let b = work[0]; work.forEach(s => { if (num(s.sec) > num(b.sec)) b = s; }); return { kind: 'sec', v: num(b.sec), s: b }; }
-  let b = null; work.forEach(s => { const v = e1rm(e, s, bw); if (v && (!b || v > b.v)) b = { kind: 'e1', v, s }; });
+  let b = null; work.forEach(s => { const v = e1rmR(e, s, bw); if (v && (!b || v > b.v)) b = { kind: 'e1', v, s }; });
   if (b) return b;
   let m = work[0]; work.forEach(s => { if (num(s.reps) > num(m.reps)) m = s; });
   return { kind: 'reps', v: num(m.reps), s: m };
@@ -873,6 +884,55 @@ function vHist() {
 }
 
 // ---------- Progrès ----------
+// ---------- Progrès par cycle ----------
+const isDeload = id => /d[ée]charge/i.test((S.cycles[id] || {}).title || '');
+function cycStats(id) {
+  const ss = S.sessions.filter(se => se.cyc === id), meta = S.cycles[id] || { title: id, n: 0, sets: 0 };
+  return { meta, ss, done: new Set(ss.map(se => se.cycS)).size, ok: ss.filter(se => !(se.diff && se.diff.length)).length,
+    sets: ss.reduce((t, se) => t + se.entries.reduce((u, en) => u + (en.plan || en.emom ? en.sets.filter(isWork).length : 0), 0), 0),
+    diffs: ss.reduce((l, se) => l.concat((se.diff || []).map(x => se.name + ' — ' + x)), []) };
+}
+function cycIds() {
+  const ids = new Set(Object.keys(S.cycles)); S.sessions.forEach(se => { if (se.cyc) ids.add(se.cyc); });
+  const from = id => (S.cycles[id] && S.cycles[id].from) || (S.sessions.find(se => se.cyc === id) || {}).date || '';
+  return [...ids].sort((x, y) => (from(x) < from(y) ? 1 : -1));
+}
+function cycNowHtml() {
+  const st = cycStats(CYC.id), m = st.meta;
+  return `<div class="card hero"><div class="mut">Cycle en cours · ${fr(CYC.from)} → ${fr(CYC.to)}</div><h2 style="margin:2px 0 10px">${esc(CYC.title)}</h2>
+    <div class="kpi"><div><b>${st.done}/${m.n}</b><span class="mut">séances</span></div><div><b>${st.sets}/${m.sets}</b><span class="mut">séries prévues</span></div><div><b>${st.ss.length ? Math.round(100 * st.ok / st.ss.length) + ' %' : '–'}</b><span class="mut">conformes</span></div></div>
+    ${st.diffs.length ? `<div class="note"><b>Écarts au plan</b>\n${esc(st.diffs.slice(0, 6).join('\n'))}${st.diffs.length > 6 ? '\n… et ' + (st.diffs.length - 6) + ' autres' : ''}</div>` : ''}</div>`;
+}
+// Mouvements clés : premier exercice de chaque séance du cycle + mouvements de street lifting ; meilleure série de chaque semaine
+function keyLiftsHtml() {
+  const ids = [...new Set((CYC ? CYC.sessions.map(cs => cs.items[0][0]) : []).concat(STREET))];
+  return ids.map(id => {
+    const e = S.exercises.find(x => x.id === id); if (!e || e.type === 'time') return '';
+    const wk = {};
+    S.sessions.forEach(se => se.entries.forEach(en => { if (en.exId !== id || en.emom) return;
+      en.sets.filter(isWork).forEach(s => { const v = e1rmR(e, s, bwOf(se)), k = se.cyc ? 'c' + se.cyc : mondayOf(se.date); // une semaine de cycle = un point, même si une séance déborde sur la semaine voisine
+        if (v && (!wk[k] || v > wk[k].v)) wk[k] = { d: (se.cyc && S.cycles[se.cyc] && S.cycles[se.cyc].from) || mondayOf(se.date), v, s, cyc: se.cyc }; }); }));
+    const pts = Object.values(wk).sort((x, y) => (x.d < y.d ? -1 : 1)); if (!pts.length) return '';
+    const ref = pts.slice(0, -1).filter(p => !isDeload(p.cyc)).pop(), last = pts[pts.length - 1], dl = ref ? last.v - ref.v : null;
+    return `<div class="card"><div class="row sp nw"><h2 class="grow" style="margin:0">${esc(e.name)}</h2><button class="lnk" data-act="exd" data-id="${id}">Fiche ›</button></div>
+    <div class="mut">e1RM ${fmt(last.v)} kg${dl !== null ? ` · <span class="${dl > 0 ? 'acc b' : ''}">${dl >= 0 ? '+' : ''}${fmt(dl)} kg</span> vs sem. du ${fr(ref.d)}` : ''}</div>
+    ${pts.length > 1 ? chart(pts, pts.length - 1, 'kg') : ''}
+    <table><tr><th>Semaine</th><th>Meilleure série</th><th>e1RM</th></tr>${pts.slice(-6).reverse().map(x => `<tr><td>${fr(x.d)}${isDeload(x.cyc) ? ' <span class="mut">décharge</span>' : ''}</td><td><b>${setTxt(e, x.s)}</b>${has(x.s.rir) ? ' <span class="mut">RIR ' + x.s.rir + '</span>' : ''}</td><td>${fmt(x.v)} kg</td></tr>`).join('')}</table></div>`;
+  }).join('');
+}
+function cycListHtml() {
+  const ids = cycIds().filter(id => !CYC || id !== CYC.id);
+  if (!ids.length) return '';
+  return `<h3>Cycles précédents</h3><div class="list">${ids.map(id => { const st = cycStats(id), m = st.meta;
+    return `<button data-act="cychist" data-id="${esc(id)}"><span class="grow">${esc(m.title)}<br><span class="mut">${m.from ? fr(m.from) + ' → ' + fr(m.to) : esc(id)}</span></span>
+      <span class="mut" style="text-align:right">${st.done}${m.n ? '/' + m.n : ''} séances<br>${st.ss.length ? Math.round(100 * st.ok / st.ss.length) + ' % conformes' : ''}</span></button>`; }).join('')}</div>`;
+}
+function cycHistSheet(id) {
+  const st = cycStats(id), m = st.meta;
+  sheet(`<h2>${esc(m.title)}</h2><div class="mut">${m.from ? fr(m.from) + ' → ' + fr(m.to) + ' · ' : ''}${st.done}${m.n ? '/' + m.n : ''} séances · ${st.sets}${m.sets ? '/' + m.sets : ''} séries prévues faites</div>
+  ${st.ss.map(se => `<div style="margin-top:10px"><b>${esc(se.name)}</b> <span class="mut">${fr(se.date)}</span>
+    <div class="note" style="border-color:${se.diff && se.diff.length ? '#f5a524' : '#2fbf71'}">${se.diff && se.diff.length ? esc(se.diff.join('\n')) : 'Conforme au plan'}</div></div>`).join('') || '<p class="mut">Aucune séance enregistrée pour ce cycle.</p>'}`);
+}
 function vProg() {
   const t = today(), wk = mondayOf(t);
   const inWeek = S.sessions.filter(se => se.date >= wk).length;
@@ -909,7 +969,9 @@ function vProg() {
   }).filter(Boolean).sort((a, b) => (a.d < b.d ? 1 : -1));
   const unit = k => (k === 'e1' ? ' kg' : k === 'sec' ? ' s' : ' reps');
   return `<h1>Progrès</h1>
-  <div class="kpi"><div><b>${inWeek}</b><span class="mut">cette semaine</span></div><div><b>${fmt(avg8)}</b><span class="mut">séances/sem. (8 sem.)</span></div><div><b class="acc">${prM}</b><span class="mut">records ce mois</span></div></div>
+  ${CYC ? cycNowHtml() : `<div class="kpi"><div><b>${inWeek}</b><span class="mut">cette semaine</span></div><div><b>${fmt(avg8)}</b><span class="mut">séances/sem. (8 sem.)</span></div><div><b class="acc">${prM}</b><span class="mut">records ce mois</span></div></div>`}
+  ${keyLiftsHtml() ? '<h3>Mouvements clés · par semaine</h3>' + keyLiftsHtml() + '<p class="mut">Meilleure série de la semaine. e1RM (Epley) ajusté du RIR quand il est noté : une série volontairement loin de l\'échec (décharge) ne fait pas chuter la courbe.</p>' : ''}
+  ${cycListHtml()}
   <div class="card" style="margin-top:12px"><h2>Régularité · 12 semaines</h2><div class="cal" style="grid-template-rows:repeat(7,1fr);grid-auto-flow:column">${cal}</div></div>
   ${st ? `<div class="card"><h2>Street lifting · 1RM estimés</h2><table>${st}</table><div class="mut" style="margin-top:6px">e1RM total (poids du corps inclus) et rapport au poids du corps du jour.</div></div>` : ''}
   <div class="card"><h2>Séries difficiles par muscle</h2>
@@ -966,7 +1028,7 @@ function vExDetail() {
   ${pts.length ? chart(pts, R.pt, unit) : '<p class="mut">Aucune donnée sur cette période.</p>'}
   ${sp ? `<div class="mut">${fr(sp.d)} · <b style="color:var(--txt)">${fmt(sp.v)} ${unit}</b> · ${sp.en.sets.filter(isWork).map(s => setTxt(e, s) + (has(s.rir) ? '@' + s.rir : '')).join(' · ')}</div>` : ''}
   ${pts.length > 1 ? `<p style="margin:8px 0 0">Sur la période : <b class="${gain > 0 ? 'acc' : ''}">${gain >= 0 ? '+' : ''}${fmt(gain)} ${unit}</b></p>` : ''}
-  ${kind === 'e1' ? '<div class="mut" style="margin-top:6px">e1RM (Epley, 1985) sur les séries de 1 à 12 reps, poids du corps du jour inclus si besoin.</div>' : ''}</div>
+  ${kind === 'e1' ? '<div class="mut" style="margin-top:6px">e1RM (Epley, 1985) sur les séries de 1 à 12 reps, ajusté du RIR quand il est noté, poids du corps du jour inclus si besoin.</div>' : ''}</div>
   <div class="card"><h2>Records</h2>
   ${t ? (maxSec ? `<p>Plus long maintien : <b class="acc">${setTxt(e, maxSec.s)}</b> <span class="mut">${fr(maxSec.d)}</span></p>` : '<p class="mut">Aucun.</p>')
     : (recRows ? `<table><tr><th>Reps</th><th>Meilleure série</th><th></th></tr>${recRows}</table>${maxReps ? `<p class="mut">Max de reps en une série : ${setTxt(e, maxReps.s)} (${fr(maxReps.d)})</p>` : ''}` : '<p class="mut">Aucun.</p>')}</div>
@@ -1324,6 +1386,7 @@ document.addEventListener('click', ev => {
     // progrès / fiche
     case 'exd': closeSheet(); R.view = 'exd'; R.id = d.id; R.pt = null; render(); window.scrollTo(0, 0); return;
     case 'back': R.view = ''; render(); window.scrollTo(0, 0); return;
+    case 'cychist': cycHistSheet(d.id); return;
     case 'range': R.range = +d.r; R.pt = null; render(); return;
     case 'pt': R.pt = +d.k; render(); return;
     case 'exsec': { const e = ex(R.id), k = e.sec.indexOf(d.m); if (k < 0) e.sec.push(d.m); else e.sec.splice(k, 1); break; }
