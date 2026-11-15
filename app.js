@@ -135,6 +135,7 @@ const DEF_EX = [
 function mkEx([id, name, muscle, sec, eq, type, repMin, repMax, inc, rest, bar]) { return { id, name, muscle, sec: sec ? sec.split(',') : [], eq: EQ_CODE[eq], type, bar: !!bar, repMin, repMax, inc, rest, note: '', archived: false }; }
 // Programme du cycle (cycle.js) : absent = l'appli fonctionne en mode libre seul
 const CYC = typeof CYCLE !== 'undefined' ? CYCLE : null;
+const VER = '15/11 n°2';
 const DEF_TPL = [
   ['push', 'Push', ['bench', 'ohp', 'incl', 'lat', 'dips', 'tri']],
   ['pull', 'Pull', ['pull', 'row', 'pdown', 'face', 'curl', 'ham']],
@@ -418,7 +419,7 @@ function itemTxt(spec) { return typeof spec === 'string' ? planTxt(spec) : `${sp
 const cycDone = id => S.sessions.filter(se => se.cyc === CYC.id && se.cycS === id).pop();
 function startCycle(sid) {
   const cs = CYC && CYC.sessions.find(x => x.id === sid); if (!cs) return;
-  if (S.active) { toast('Une séance est déjà en cours'); R.tab = 'seance'; return render(); }
+  if (S.active) { toast('Une séance est déjà en cours : termine-la ou quitte-la d\'abord'); R.tab = 'seance'; render(); return window.scrollTo(0, 0); }
   begin(cs.name, '', () => cs.items.map(([exId, spec, note]) => typeof spec === 'string'
     ? { exId, group: '', plan: spec, pnote: note || '', sets: planSets(spec) }
     : { exId, group: '', emom: spec.emom, pnote: note || '', sets: Array.from({ length: spec.emom }, () => Object.assign(blankSet('n'), { pk: '0', pn: String(spec.reps), ps: 0 })) }));
@@ -533,12 +534,12 @@ function vCycle() {
   ${A ? `<div class="card banner"><div class="row sp nw"><div class="grow"><b>Séance en cours</b><div class="mut">${esc(A.name)}</div></div><button class="p" data-tab="seance">Reprendre</button></div></div>` : ''}
   ${nx ? `<div class="card"><div class="mut">Prochaine séance</div><h2 style="font-size:24px;margin:2px 0 6px">${esc(nx.name)}</h2>
     <div class="mut">${nx.items.map(([id]) => esc(ex(id).name)).join(' · ')}</div>
-    <button class="p blk" style="margin-top:12px;min-height:54px;font-size:18px" data-act="cstart" data-id="${nx.id}" ${A ? 'disabled' : ''}>Démarrer ${esc(nx.name)}</button></div>`
+    <button class="p blk" style="margin-top:12px;min-height:54px;font-size:18px" data-act="cstart" data-id="${nx.id}">Démarrer ${esc(nx.name)}</button></div>`
     : `<div class="card banner"><b>Semaine terminée</b><div class="mut">Les ${n} séances sont faites.</div></div>`}
   <h3>Séances de la semaine</h3>
   <div class="list">${CYC.sessions.map(cs => { const d = cycDone(cs.id);
     return `<button data-act="cview" data-id="${cs.id}"><span class="grow">${esc(cs.name)}<br><span class="mut">${d ? 'Faite ' + fr(d.date) + (d.diff && d.diff.length ? ' · ' + d.diff.length + ' écart' + (d.diff.length > 1 ? 's' : '') : ' · conforme') : cs.items.length + ' exercices'}</span></span><span class="${d ? 'acc b' : 'mut'}">${d ? '✓' : 'Voir'}</span></button>`; }).join('')}</div>
-  <p class="mut" style="margin-top:14px">Les séances hors programme se lancent depuis l'onglet Séance.</p>`;
+  <p class="mut" style="margin-top:14px">Les séances hors programme se lancent depuis l'onglet Séance.<br>Version ${VER}</p>`;
 }
 function cycleSheet(sid) {
   const cs = CYC.sessions.find(x => x.id === sid); if (!cs) return;
@@ -546,7 +547,7 @@ function cycleSheet(sid) {
   sheet(`<h2>${esc(cs.name)}</h2>
   ${cs.items.map(([id, spec, note], k) => `<div style="margin-top:10px"><b>${k + 1}. ${esc(ex(id).name)}</b><div class="mut">${esc(itemTxt(spec))}${note ? ' · ' + esc(note) : ''}</div></div>`).join('')}
   ${d ? `<div class="note">Faite ${fr(d.date)} · ${d.diff && d.diff.length ? esc(d.diff.join(' ; ')) : 'conforme au plan'}</div>` : ''}
-  <button class="p blk" style="margin-top:14px" data-act="cstart" data-id="${sid}" ${S.active ? 'disabled' : ''}>${d ? 'Refaire cette séance' : 'Démarrer cette séance'}</button>`);
+  <button class="p blk" style="margin-top:14px" data-act="cstart" data-id="${sid}">${d ? 'Refaire cette séance' : 'Démarrer cette séance'}</button>`);
 }
 function emomCard(i) {
   const A = S.active, en = A.entries[i], e = ex(en.exId), run = A.emom && A.emom.i === i;
