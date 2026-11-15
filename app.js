@@ -346,7 +346,7 @@ DEF_EX.push(...[
 ].map(mkEx));
 // Programme du cycle (cycle.js) : absent = l'appli fonctionne en mode libre seul
 const CYC = typeof CYCLE !== 'undefined' ? CYCLE : null;
-const VER = '15/11 n°6';
+const VER = '15/11 n°7';
 const DEF_TPL = [
   ['push', 'Push', ['bench', 'ohp', 'incl', 'lat', 'dips', 'tri']],
   ['pull', 'Pull', ['pull', 'row', 'pdown', 'face', 'curl', 'ham']],
@@ -415,6 +415,8 @@ function normalize(s) {
     sets: CYC.sessions.reduce((t, cs) => t + cs.items.reduce((u, it) => u + (typeof it[1] === 'string' ? parsePlan(it[1]).filter(x => !x.w).reduce((v, x) => v + x.n, 0) : it[1].emom), 0), 0) };
   s.lastExport = s.lastExport || 0;
   s.coach = normalizeCoach(s.coach);
+  s.cycPlan = s.cycPlan || {};
+  seedHistory(s);
   return s;
 }
 // Migration depuis la première version (localStorage, RPE)
@@ -561,6 +563,22 @@ function e1rmR(e, s, bw) {
   const r = num(s.reps), rr = has(s.rir) ? num(s.rir) : 0;
   if (!rr || r < 1 || r + rr > 12) return e1rm(e, s, bw);
   return eff(e, s, bw) * (1 + (r + rr) / 30);
+}
+// Reprise des séances faites avant l'appli (historique.js), une seule fois
+function seedHistory(s) {
+  if (typeof HISTORY === 'undefined') return;
+  s.seeds = s.seeds || {};
+  if (s.seeds[HISTORY.id]) return;
+  Object.keys(HISTORY.cycles).forEach(id => { if (!s.cycles[id]) s.cycles[id] = HISTORY.cycles[id]; });
+  HISTORY.sessions.forEach(h => {
+    const id = 'imp-' + h.d; if (s.sessions.some(x => x.id === id)) return;
+    const entries = h.items.map(([exId, n, reps, kg, rir]) => ({ exId, group: '', plan: 'import',
+      sets: Array.from({ length: n }, (_, k) => ({ t: 'n', kg: String(kg).replace('.', ','), reps: String(reps), sec: '', rir: k === n - 1 ? String(rir) : '', done: true, pr: [] })) }));
+    if (h.emom) entries.push({ exId: 'emompull', group: '', emom: 10, sets: Array.from({ length: 10 }, () => ({ t: 'n', kg: '0', reps: '5', sec: '', rir: '', done: true, pr: [] })) });
+    s.sessions.push({ id, date: h.d, tplId: '', name: h.name, start: new Date(h.d + 'T18:00').getTime(), end: 0, bw: h.bw, note: h.note || '', entries, cyc: h.cyc, cycS: h.s, diff: h.diff, imp: true });
+  });
+  s.sessions.sort((x, y) => (x.start || 0) - (y.start || 0));
+  s.seeds[HISTORY.id] = true;
 }
 function sessMetric(e, se, en) {
   const bw = bwOf(se), work = en.sets.filter(isWork);
@@ -760,10 +778,36 @@ function vCycle() {
     <div class="mut">${nx.items.map(([id]) => esc(ex(id).name)).join(' · ')}</div>
     <button class="p blk" style="margin-top:12px;min-height:54px;font-size:18px" data-act="cstart" data-id="${nx.id}">Démarrer ${esc(nx.name)}</button></div>`
     : `<div class="card banner"><b>Semaine terminée</b><div class="mut">Les ${n} séances sont faites.</div></div>`}
+  ${cycCalHtml()}
   <h3>Séances de la semaine</h3>
   <div class="list">${CYC.sessions.map(cs => { const d = cycDone(cs.id);
-    return `<button class="${d ? 'ok' : ''}" data-act="cview" data-id="${cs.id}"><span class="grow">${esc(cs.name)}<br><span class="mut">${d ? 'Faite ' + fr(d.date) + (d.diff && d.diff.length ? ' · ' + d.diff.length + ' écart' + (d.diff.length > 1 ? 's' : '') : ' · conforme') : cs.items.length + ' exercices'}</span></span><span class="${d ? 'acc b' : 'mut'}">${d ? '✓' : 'Voir'}</span></button>`; }).join('')}</div>
+    return `<button class="${d ? 'ok' : ''}" data-act="cview" data-id="${cs.id}"><span class="grow">${esc(cs.name)}<br><span class="mut">${d ? 'Faite ' + fr(d.date) + (d.diff && d.diff.length ? ' · ' + d.diff.length + ' écart' + (d.diff.length > 1 ? 's' : '') : ' · conforme') : cs.items.length + ' exercices' + cycPlanTxt(cs.id)}</span></span><span class="${d ? 'acc b' : 'mut'}">${d ? '✓' : 'Voir'}</span></button>`; }).join('')}</div>
   <p class="mut" style="margin-top:14px">Les séances hors programme se lancent depuis l'onglet Séance.<br>Version ${VER}</p>`;
+}
+// Planning facultatif : un jour prévu par séance, sans rien imposer (la « prochaine séance » suit toujours l'ordre du cycle)
+const cycDays = () => Array.from({ length: Math.round((new Date(CYC.to) - new Date(CYC.from)) / 864e5) + 1 }, (_, k) => addDays(CYC.from, k));
+const cycPlan = () => S.cycPlan[CYC.id] || {};
+function cycPlanTxt(sid) { const d = cycPlan()[sid]; return d ? ' · ' + (d < today() ? '<span class="acc b">prévue ' + fr(d) + ', en retard</span>' : 'prévue ' + fr(d)) : ''; }
+function cycCalHtml() {
+  const pl = cycPlan(), days = cycDays(), t = today(), short = cs => cs.name.split(' ')[0];
+  const todo = CYC.sessions.filter(cs => pl[cs.id] && !cycDone(cs.id));
+  return `<h3>Planning de la semaine (facultatif)</h3><div class="card">
+  <div class="wk">${days.map(d => { const dn = CYC.sessions.filter(cs => { const x = cycDone(cs.id); return x && x.date === d; }), pn = CYC.sessions.filter(cs => pl[cs.id] === d && !cycDone(cs.id));
+    return `<div class="${d === t ? 'tod' : ''}"><span>${new Date(d + 'T12:00').toLocaleDateString('fr-FR', { weekday: 'narrow' }).toUpperCase()}</span><b>${+d.slice(8)}</b>${dn.map(cs => `<i class="dn">${short(cs)} ✓</i>`).join('')}${pn.map(cs => `<i>${short(cs)}</i>`).join('')}</div>`; }).join('')}</div>
+  ${CYC.sessions.map(cs => { const x = cycDone(cs.id);
+    return `<div class="row nw" style="margin-top:8px"><span class="grow" style="font-size:14px">${esc(cs.name)}</span>${x ? `<span class="mut">Faite ${fr(x.date)}</span>`
+      : `<select data-cp="${cs.id}" style="width:150px">${[''].concat(days).map(d => `<option value="${d}" ${(pl[cs.id] || '') === d ? 'selected' : ''}>${d ? fr(d) : 'Non planifiée'}</option>`).join('')}</select>`}</div>`; }).join('')}
+  ${todo.length ? '<button class="blk" style="margin-top:10px" data-act="cics">Ajouter au calendrier de l\'iPhone</button>' : ''}
+  <p class="mut">Indicatif : rien ne bloque si tu fais une séance un autre jour.</p></div>`;
+}
+function cycIcs() {
+  const pl = cycPlan(), z = d => d.replace(/-/g, ''), esc2 = x => String(x).replace(/([,;\\])/g, '\\$1');
+  const ev = CYC.sessions.filter(cs => pl[cs.id] && !cycDone(cs.id)).map(cs => ['BEGIN:VEVENT', 'UID:' + CYC.id + '-' + cs.id + '@ar-training', 'DTSTAMP:' + z(today()) + 'T000000Z',
+    'DTSTART;VALUE=DATE:' + z(pl[cs.id]), 'DTEND;VALUE=DATE:' + z(addDays(pl[cs.id], 1)), 'SUMMARY:' + esc2('AR Training · ' + cs.name),
+    'DESCRIPTION:' + esc2(cs.items.map(([id]) => ex(id).name).join(' · ')), 'END:VEVENT'].join('\r\n'));
+  const txt = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//AR Training//FR', ...ev, 'END:VCALENDAR'].join('\r\n');
+  const le = S.lastExport; // ce n'est pas une sauvegarde : on ne touche pas à la date de dernière sauvegarde
+  shareFile(`AR-Training-planning-${CYC.id}.ics`, new Blob([txt], { type: 'text/calendar' }), 'text/calendar').then(() => { S.lastExport = le; save(); });
 }
 function cycleSheet(sid) {
   const cs = CYC.sessions.find(x => x.id === sid); if (!cs) return;
@@ -837,6 +881,7 @@ function entryCard(i) {
   else if (c.sug) goal = `Objectif : <b>${t ? c.sug.sec + ' s' : setTxt(e, { kg: c.sug.kg, reps: c.sug.reps })}</b> · ${c.sug.why}`;
   else goal = `Première fois · plage ${e.repMin}–${e.repMax} ${t ? 's' : 'reps'}`;
   let n = 0;
+  const lastDone = en.sets.reduce((m, s, j) => (s.done && s.t !== 'w' ? j : m), -1);
   return `<div class="card ${ss ? 'ss' : ''}" id="en-${i}">
   ${ss && prevG !== en.group ? `<div class="mut acc b" style="margin-bottom:4px">SUPERSET ${en.group}</div>` : ''}
   <div class="row sp nw"><h2 class="grow" style="margin:0">${esc(e.name)}</h2>
@@ -857,7 +902,8 @@ function entryCard(i) {
     <select data-f="rir" data-i="${i}" data-j="${j}">${['', '0', '1', '2', '3', '4', '5'].map(v => `<option value="${v}" ${String(s.rir) === v ? 'selected' : ''}>${v === '' ? '–' : v === '5' ? '5+' : v}</option>`).join('')}</select>
     <button class="ok" data-act="done" data-i="${i}" data-j="${j}">✓</button></div>`;
   }).join('')}
-  <div class="row" style="margin-top:8px"><button class="grow" data-act="addset" data-i="${i}">+ Série</button></div></div>`;
+  <div class="row nw" style="margin-top:8px"><button class="grow" data-act="addset" data-i="${i}">+ Série</button>${t ? '' : `<button data-act="kgadj" data-i="${i}" data-d="-1.25">−1,25</button><button data-act="kgadj" data-i="${i}" data-d="1.25">+1,25</button>`}</div>
+  ${lastDone >= 0 && !t ? `<div class="mut" style="margin-top:10px">RIR de la dernière série validée</div><div class="chips n10" style="margin-top:4px">${['0', '1', '2', '3', '4', '5'].map(v => `<button class="${String(en.sets[lastDone].rir) === v ? 'on' : ''}" data-act="rirset" data-i="${i}" data-j="${lastDone}" data-v="${v}">${v === '5' ? '5+' : v}</button>`).join('')}</div>` : ''}</div>`;
 }
 function renderCard(i) { const el = document.getElementById('en-' + i); if (el) el.outerHTML = entryCard(i); else render(); }
 
@@ -911,7 +957,7 @@ function keyLiftsHtml() {
     const wk = {};
     S.sessions.forEach(se => se.entries.forEach(en => { if (en.exId !== id || en.emom) return;
       en.sets.filter(isWork).forEach(s => { const v = e1rmR(e, s, bwOf(se)), k = se.cyc ? 'c' + se.cyc : mondayOf(se.date); // une semaine de cycle = un point, même si une séance déborde sur la semaine voisine
-        if (v && (!wk[k] || v > wk[k].v)) wk[k] = { d: (se.cyc && S.cycles[se.cyc] && S.cycles[se.cyc].from) || mondayOf(se.date), v, s, cyc: se.cyc }; }); }));
+        if (v && (!wk[k] || v > wk[k].v || (v === wk[k].v && has(s.rir) && !has(wk[k].s.rir)))) wk[k] = { d: (se.cyc && S.cycles[se.cyc] && S.cycles[se.cyc].from) || mondayOf(se.date), v, s, cyc: se.cyc }; }); }));
     const pts = Object.values(wk).sort((x, y) => (x.d < y.d ? -1 : 1)); if (!pts.length) return '';
     const ref = pts.slice(0, -1).filter(p => !isDeload(p.cyc)).pop(), last = pts[pts.length - 1], dl = ref ? last.v - ref.v : null;
     return `<div class="card"><div class="row sp nw"><h2 class="grow" style="margin:0">${esc(e.name)}</h2><button class="lnk" data-act="exd" data-id="${id}">Fiche ›</button></div>
@@ -1264,6 +1310,7 @@ document.addEventListener('click', ev => {
     case 'start': startTpl(d.id); return;
     case 'cstart': closeSheet(); startCycle(d.id); return;
     case 'cview': cycleSheet(d.id); return;
+    case 'cics': cycIcs(); return;
     case 'emom-go': A.emom = { i, start: Date.now() }; emomM = -1; emomW = -1; stopRest(); save(); renderCard(i); tick(); return;
     case 'emom-stop': A.emom = null; save(); renderCard(i); return;
     case 'emin': {
@@ -1321,6 +1368,11 @@ document.addEventListener('click', ev => {
     case 'pickrep': openPick('replace', i); return;
     case 'pickex': picked(d.id); return;
     case 'pickcreate': { const n = $('#pickq').value.trim(); if (!n) return; const e = Object.assign(exDefaults(), { name: n }); S.exercises.push(e); picked(e.id); toast('Exercice créé : règle son muscle dans sa fiche'); return; }
+    case 'kgadj': { // décale la charge des séries de travail restantes (un petit disque de chaque côté = 2,5 ; un seul = 1,25)
+      const en = A.entries[i], e = ex(en.exId), c = cardCtx(en);
+      en.sets.forEach((s, j) => { if (s.done || s.t === 'w') return; const p = placeholder(e, en, j, c); s.kg = fmtIn(Math.max(0, (has(s.kg) ? num(s.kg) : has(p.kg) ? num(p.kg) : 0) + +d.d)); });
+      save(); renderCard(i); return; }
+    case 'rirset': { const s = A.entries[i].sets[j]; s.rir = String(s.rir) === d.v ? '' : d.v; save(); renderCard(i); return; }
     case 'addset': { const s = A.entries[i].sets; const l = s[s.length - 1]; const ns = blankSet(l && l.t === 'w' ? 'n' : (l ? l.t : 'n')); s.push(ns); save(); renderCard(i); return; }
     case 'setmenu': {
       const s = A.entries[i].sets[j];
@@ -1428,6 +1480,7 @@ document.addEventListener('input', ev => {
 document.addEventListener('change', ev => {
   const t = ev.target, d = t.dataset;
   if (coachChange(t)) return;
+  if (d.cp !== undefined && CYC) { const pl = S.cycPlan[CYC.id] = S.cycPlan[CYC.id] || {}; if (t.value) pl[d.cp] = t.value; else delete pl[d.cp]; save(); render(); return; }
   if (d.f && S.active) { S.active.entries[+d.i].sets[+d.j][d.f] = t.value; save(); return; }
   if (d.exf) {
     const e = ex(R.id), k = d.exf;

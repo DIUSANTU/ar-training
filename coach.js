@@ -365,7 +365,8 @@ function coachXlsx() {
   add('Bilans', r2, [22, 11, 20, 40, 40, 8]);
   add('Mesures', r3, [22, 24, 8, 11, 10]);
   const type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-  shareFile(`AR-Training-coach-${today()}.xlsx`, new Blob([X.write(wb, { type: 'array', bookType: 'xlsx' })], { type }), type);
+  const le = S.lastExport; // export partiel : ne compte pas comme sauvegarde complète
+  shareFile(`AR-Training-coach-${today()}.xlsx`, new Blob([X.write(wb, { type: 'array', bookType: 'xlsx' })], { type }), type).then(() => { S.lastExport = le; save(); });
 }
 
 // =============== Événements (appelés par app.js) ===============

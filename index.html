@@ -139,6 +139,13 @@ a.btn{display:inline-flex;align-items:center;justify-content:center;min-height:4
 .qa b{font-weight:600}.qa input,.qa textarea,.qa .chips{margin-top:8px}
 .chips.n10 button{min-width:40px;padding:6px 0}
 tr[data-act]{cursor:pointer}
+/* Planning du cycle */
+.wk{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.wk>div{background:#000;border:1px solid var(--line);border-radius:10px;padding:6px 2px;text-align:center;min-height:78px;display:flex;flex-direction:column;align-items:center;gap:2px}
+.wk>div.tod{border-color:var(--acc)}
+.wk span{font-size:10px;color:var(--mut)}.wk b{font-size:15px}
+.wk i{font-style:normal;font-size:10px;font-weight:700;background:var(--acc);color:#fff;border-radius:5px;padding:1px 4px}
+.wk i.dn{background:#1d3a28;color:#7be0a0}
 </style>
 </head>
 <body>
@@ -150,6 +157,7 @@ tr[data-act]{cursor:pointer}
 <nav id="nav"></nav>
 <script src="cycle.js"></script>
 <script src="coach.js"></script>
+<script src="historique.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
