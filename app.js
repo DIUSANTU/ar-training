@@ -346,7 +346,7 @@ DEF_EX.push(...[
 ].map(mkEx));
 // Programme du cycle (cycle.js) : absent = l'appli fonctionne en mode libre seul
 const CYC = typeof CYCLE !== 'undefined' ? CYCLE : null;
-const VER = '15/11 n°7';
+const VER = '15/11 n°8';
 const DEF_TPL = [
   ['push', 'Push', ['bench', 'ohp', 'incl', 'lat', 'dips', 'tri']],
   ['pull', 'Pull', ['pull', 'row', 'pdown', 'face', 'curl', 'ham']],
@@ -564,18 +564,31 @@ function e1rmR(e, s, bw) {
   if (!rr || r < 1 || r + rr > 12) return e1rm(e, s, bw);
   return eff(e, s, bw) * (1 + (r + rr) / 30);
 }
-// Reprise des séances faites avant l'appli (historique.js), une seule fois
+// Reprise des séances faites avant l'appli (historique.js), une seule fois par version de l'historique
+function histSession(h) {
+  const mk = (t, kg, reps) => ({ t, kg: String(kg), reps: String(reps), sec: '', rir: '', done: true, pr: [] });
+  const entries = h.items.map(([exId, spec, rir]) => {
+    if (typeof spec !== 'string') return { exId, group: '', emom: spec.length, sets: spec.map(r => mk('n', '0', r)) };
+    const sets = []; parsePlan(spec).forEach(p => { for (let k = 0; k < p.n; k++) sets.push(mk(p.w ? 'w' : 'n', p.kg, p.reps)); });
+    if (rir !== undefined && rir !== '') { // RIR noté sur la dernière série à la charge la plus lourde (pas sur le back-off)
+      const mx = Math.max(...sets.filter(x => x.t !== 'w').map(x => num(x.kg))); let last = -1;
+      sets.forEach((x, k) => { if (x.t !== 'w' && num(x.kg) === mx) last = k; }); sets[last].rir = String(rir);
+    }
+    return { exId, group: '', plan: spec, sets };
+  });
+  return { id: 'imp-' + h.d, date: h.d, tplId: '', name: h.name, start: new Date(h.d + 'T18:00').getTime(), end: 0, bw: h.bw, note: '', entries, cyc: h.cyc, cycS: h.s, diff: h.diff, imp: true };
+}
 function seedHistory(s) {
   if (typeof HISTORY === 'undefined') return;
   s.seeds = s.seeds || {};
   if (s.seeds[HISTORY.id]) return;
+  const had = (HISTORY.replaces || []).some(id => s.seeds[id]); // une version précédente de l'historique a déjà été importée
+  (HISTORY.exercises || []).map(mkEx).forEach(def => { if (!s.exercises.some(e => e.id === def.id)) s.exercises.push(def); });
   Object.keys(HISTORY.cycles).forEach(id => { if (!s.cycles[id]) s.cycles[id] = HISTORY.cycles[id]; });
   HISTORY.sessions.forEach(h => {
-    const id = 'imp-' + h.d; if (s.sessions.some(x => x.id === id)) return;
-    const entries = h.items.map(([exId, n, reps, kg, rir]) => ({ exId, group: '', plan: 'import',
-      sets: Array.from({ length: n }, (_, k) => ({ t: 'n', kg: String(kg).replace('.', ','), reps: String(reps), sec: '', rir: k === n - 1 ? String(rir) : '', done: true, pr: [] })) }));
-    if (h.emom) entries.push({ exId: 'emompull', group: '', emom: 10, sets: Array.from({ length: 10 }, () => ({ t: 'n', kg: '0', reps: '5', sec: '', rir: '', done: true, pr: [] })) });
-    s.sessions.push({ id, date: h.d, tplId: '', name: h.name, start: new Date(h.d + 'T18:00').getTime(), end: 0, bw: h.bw, note: h.note || '', entries, cyc: h.cyc, cycS: h.s, diff: h.diff, imp: true });
+    const k = s.sessions.findIndex(x => x.id === 'imp-' + h.d);
+    if (k >= 0 ? !s.sessions[k].imp : had) return; // modifiée ou supprimée par l'utilisateur : on n'y touche pas
+    if (k >= 0) s.sessions[k] = histSession(h); else s.sessions.push(histSession(h));
   });
   s.sessions.sort((x, y) => (x.start || 0) - (y.start || 0));
   s.seeds[HISTORY.id] = true;
@@ -902,7 +915,7 @@ function entryCard(i) {
     <select data-f="rir" data-i="${i}" data-j="${j}">${['', '0', '1', '2', '3', '4', '5'].map(v => `<option value="${v}" ${String(s.rir) === v ? 'selected' : ''}>${v === '' ? '–' : v === '5' ? '5+' : v}</option>`).join('')}</select>
     <button class="ok" data-act="done" data-i="${i}" data-j="${j}">✓</button></div>`;
   }).join('')}
-  <div class="row nw" style="margin-top:8px"><button class="grow" data-act="addset" data-i="${i}">+ Série</button>${t ? '' : `<button data-act="kgadj" data-i="${i}" data-d="-1.25">−1,25</button><button data-act="kgadj" data-i="${i}" data-d="1.25">+1,25</button>`}</div>
+  <div class="row nw" style="margin-top:8px"><button class="grow" data-act="addset" data-i="${i}">+ Série</button>${t ? '' : `<button data-act="kgadj" data-i="${i}" data-d="-1.5">−1,5</button><button data-act="kgadj" data-i="${i}" data-d="1.5">+1,5</button>`}</div>
   ${lastDone >= 0 && !t ? `<div class="mut" style="margin-top:10px">RIR de la dernière série validée</div><div class="chips n10" style="margin-top:4px">${['0', '1', '2', '3', '4', '5'].map(v => `<button class="${String(en.sets[lastDone].rir) === v ? 'on' : ''}" data-act="rirset" data-i="${i}" data-j="${lastDone}" data-v="${v}">${v === '5' ? '5+' : v}</button>`).join('')}</div>` : ''}</div>`;
 }
 function renderCard(i) { const el = document.getElementById('en-' + i); if (el) el.outerHTML = entryCard(i); else render(); }
@@ -1368,7 +1381,7 @@ document.addEventListener('click', ev => {
     case 'pickrep': openPick('replace', i); return;
     case 'pickex': picked(d.id); return;
     case 'pickcreate': { const n = $('#pickq').value.trim(); if (!n) return; const e = Object.assign(exDefaults(), { name: n }); S.exercises.push(e); picked(e.id); toast('Exercice créé : règle son muscle dans sa fiche'); return; }
-    case 'kgadj': { // décale la charge des séries de travail restantes (un petit disque de chaque côté = 2,5 ; un seul = 1,25)
+    case 'kgadj': { // décale la charge des séries de travail restantes d'un petit disque (1,5 kg à sa salle)
       const en = A.entries[i], e = ex(en.exId), c = cardCtx(en);
       en.sets.forEach((s, j) => { if (s.done || s.t === 'w') return; const p = placeholder(e, en, j, c); s.kg = fmtIn(Math.max(0, (has(s.kg) ? num(s.kg) : has(p.kg) ? num(p.kg) : 0) + +d.d)); });
       save(); renderCard(i); return; }
