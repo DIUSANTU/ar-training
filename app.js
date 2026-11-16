@@ -346,7 +346,7 @@ DEF_EX.push(...[
 ].map(mkEx));
 // Programme du cycle (cycle.js) : absent = l'appli fonctionne en mode libre seul
 const CYC = typeof CYCLE !== 'undefined' ? CYCLE : null;
-const VER = '16/11 n°12';
+const VER = '16/11 n°13';
 const DEF_TPL = [
   ['push', 'Push', ['bench', 'ohp', 'incl', 'lat', 'dips', 'tri']],
   ['pull', 'Pull', ['pull', 'row', 'pdown', 'face', 'curl', 'ham']],
@@ -721,6 +721,7 @@ function finishWorkout(bw, note) {
   if (!out.entries.length) return toast('Aucune série validée');
   if (A.editOf) { const k = S.sessions.findIndex(s => s.id === A.editOf); if (k >= 0) S.sessions[k] = out; else S.sessions.push(out); }
   else { S.sessions.push(out); S.settings.bw = out.bw; }
+  queueSync(out.id);
   const nPR = out.entries.reduce((t, en) => t + en.sets.filter(s => s.pr && s.pr.length).length, 0);
   S.active = null; closeSheet(); unwake(); save(true); snapshot();
   R.tab = out.cyc && !A.editOf ? 'cycle' : 'hist'; render(); window.scrollTo(0, 0);
@@ -1188,6 +1189,7 @@ function vSet() {
     <input type="file" id="file" accept=".json,application/json" hidden>
     <p class="mut">L'Excel contient 4 onglets : Séries, Séances, Records, Séries par muscle. Il ne modifie pas ton Suivi Journalier.xlsx ; copie les colonnes utiles ou relie-les par formule.</p>
     <h3>Sauvegardes automatiques (à chaque fin de séance)</h3><div id="snaps" class="list"><p class="mut">…</p></div></div>
+  ${syncCard()}
   <div class="card"><h2>Sources des calculs</h2><div class="mut">
     e1RM : Epley (1985). Progression : double progression (Helms, Morgan & Valdez, The Muscle and Strength Pyramid). RIR : Zourdos et al. (2016), Helms et al. (2016). Volume : Schoenfeld, Ogborn & Krieger (2017) ; comptage fractionnaire des muscles secondaires : Pelland et al. (2024). Repos : Schoenfeld et al. (2016).</div></div>`;
 }
@@ -1324,6 +1326,7 @@ document.addEventListener('click', ev => {
   if (!b || b.tagName === 'INPUT' || b.tagName === 'SELECT' || b.tagName === 'TEXTAREA') return;
   const d = b.dataset, A = S.active, i = +d.i, j = +d.j;
   if (coachClick(d)) return;
+  if (syncClick(d)) return;
   switch (d.act) {
     case 'close': closeSheet(); return;
     case 'ask-yes': { const cb = askCb; closeSheet(); if (cb) cb(); return; }
@@ -1540,5 +1543,6 @@ async function boot() {
   setInterval(tick, 500);
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   setTimeout(() => loadXlsx().catch(() => {}), 5000);
+  setTimeout(trySync, 3000); window.addEventListener('online', () => trySync()); // séances restées en attente (hors ligne)
 }
 boot();
