@@ -4,7 +4,7 @@
    pour le reste de chaque séance, réalisé tel qu'écrit (confirmé par Adrien le 15/11/2026) :
    semaine 1 = les 6 séances ; semaine 2 = S1 à S4 puis S5 + S6 condensées ; semaine 3 = S1 à S3 puis S4 + S5 + S6 condensées.
    Séances condensées (page Notion « Séances condensées ») : mouvements clés seuls, avec leur montée.
-   Semaine 2 : Condensée B (tractions + squat). Semaine 3 : Condensée maximale (squat, dips, tractions), aucune séance volume faite.
+   Semaine 2 : Condensée B (tractions + squat). Semaine 3 : Condensée maximale (squat, dips, tractions + EMOM), aucune séance volume faite.
    Quand le plan donne une fourchette (6-8 reps, 40-45 kg), c'est le bas de la fourchette qui est retenu, faute de valeur notée.
    Les notes et remarques de séance ne sont pas reprises (dépôt public).
    Importées une seule fois (voir seedHistory dans app.js) ; une séance modifiée ou supprimée ensuite n'est plus touchée.
@@ -23,8 +23,8 @@ const H_SQ = 'w 1x8@0 / w 1x6@60 / w 1x6@80 / w 1x5@100 / w 1x5@110 / ';
 const H_CP = 'w 1x6@20 / ';
 
 const HISTORY = {
-  id: 'meso1-sem1-3-v5',
-  replaces: ['meso1-sem1-3', 'meso1-sem1-3-v2', 'meso1-sem1-3-v3', 'meso1-sem1-3-v4'],
+  id: 'meso1-sem1-3-v6',
+  replaces: ['meso1-sem1-3', 'meso1-sem1-3-v2', 'meso1-sem1-3-v3', 'meso1-sem1-3-v4', 'meso1-sem1-3-v5'],
   // Exercices du plan absents de la bibliothèque (même format que DEF_EX dans app.js)
   exercises: [
     ['cleanpress', 'Clean press', 'Épaules', 'Triceps,Dos', 'B', 'load', 6, 8, 2.5, 150, 1],
@@ -80,6 +80,6 @@ const HISTORY = {
     { d: '2026-11-12', cyc: 'm1s3', s: 's3', name: 'S3 Legs lourd', bw: 87.3, diff: [],
       items: [['squat', H_SQ + 'w 1x3@120 / 3x5@130 / 1x5@100', 1], ...H_LEGS] },
     { d: '2026-11-14', cyc: 'm1s3', s: 'cmax', name: 'Condensée maximale · plan d\'urgence', bw: 87.3, diff: ['Condensée maximale à la place de S4, S5 et S6 (aucune séance volume faite)'],
-      items: [['squat', H_SQC + '5x5@120', 3], ['dips', 'w 1x10@0 / w 1x5@20 / 4x10@40', 0], ['pull', 'w 1x10@0 / w 1x5@10 / 4x7@25', 0]] }
+      items: [['squat', H_SQC + '5x5@120', 3], ['dips', 'w 1x10@0 / w 1x5@20 / 4x10@40', 0], ['pull', 'w 1x10@0 / w 1x5@10 / 4x7@25', 0], H_EMOM] }
   ]
 };
