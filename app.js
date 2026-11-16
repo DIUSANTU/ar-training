@@ -346,7 +346,7 @@ DEF_EX.push(...[
 ].map(mkEx));
 // Programme du cycle (cycle.js) : absent = l'appli fonctionne en mode libre seul
 const CYC = typeof CYCLE !== 'undefined' ? CYCLE : null;
-const VER = '15/11 n°10';
+const VER = '16/11 n°11';
 const DEF_TPL = [
   ['push', 'Push', ['bench', 'ohp', 'incl', 'lat', 'dips', 'tri']],
   ['pull', 'Pull', ['pull', 'row', 'pdown', 'face', 'curl', 'ham']],
@@ -955,7 +955,7 @@ function vHist() {
 const isDeload = id => /d[ée]charge/i.test((S.cycles[id] || {}).title || '');
 function cycStats(id) {
   const ss = S.sessions.filter(se => se.cyc === id), meta = S.cycles[id] || { title: id, n: 0, sets: 0 };
-  return { meta, ss, done: new Set(ss.map(se => se.cycS)).size, ok: ss.filter(se => !(se.diff && se.diff.length)).length,
+  return { meta, ss, done: new Set(ss.filter(se => !/^c/.test(se.cycS)).map(se => se.cycS)).size, cond: ss.filter(se => /^c/.test(se.cycS)).length, ok: ss.filter(se => !(se.diff && se.diff.length)).length,
     sets: ss.reduce((t, se) => t + se.entries.reduce((u, en) => u + (en.plan || en.emom ? en.sets.filter(isWork).length : 0), 0), 0),
     diffs: ss.reduce((l, se) => l.concat((se.diff || []).map(x => se.name + ' — ' + x)), []) };
 }
@@ -967,7 +967,7 @@ function cycIds() {
 function cycNowHtml() {
   const st = cycStats(CYC.id), m = st.meta;
   return `<div class="card hero"><div class="mut">Cycle en cours · ${fr(CYC.from)} → ${fr(CYC.to)}</div><h2 style="margin:2px 0 10px">${esc(CYC.title)}</h2>
-    <div class="kpi"><div><b>${st.done}/${m.n}</b><span class="mut">séances</span></div><div><b>${st.sets}/${m.sets}</b><span class="mut">séries prévues</span></div><div><b>${st.ss.length ? Math.round(100 * st.ok / st.ss.length) + ' %' : '–'}</b><span class="mut">conformes</span></div></div>
+    <div class="kpi"><div><b>${st.done}/${m.n}</b><span class="mut">séances${st.cond ? ' + ' + st.cond + ' cond.' : ''}</span></div><div><b>${st.sets}/${m.sets}</b><span class="mut">séries prévues</span></div><div><b>${st.ss.length ? Math.round(100 * st.ok / st.ss.length) + ' %' : '–'}</b><span class="mut">conformes</span></div></div>
     ${st.diffs.length ? `<div class="note"><b>Écarts au plan</b>\n${esc(st.diffs.slice(0, 6).join('\n'))}${st.diffs.length > 6 ? '\n… et ' + (st.diffs.length - 6) + ' autres' : ''}</div>` : ''}</div>`;
 }
 // Mouvements clés : premier exercice de chaque séance du cycle + mouvements de street lifting ; meilleure série de chaque semaine
@@ -992,11 +992,11 @@ function cycListHtml() {
   if (!ids.length) return '';
   return `<h3>Cycles précédents</h3><div class="list">${ids.map(id => { const st = cycStats(id), m = st.meta;
     return `<button data-act="cychist" data-id="${esc(id)}"><span class="grow">${esc(m.title)}<br><span class="mut">${m.from ? fr(m.from) + ' → ' + fr(m.to) : esc(id)}</span></span>
-      <span class="mut" style="text-align:right">${st.done}${m.n ? '/' + m.n : ''} séances<br>${st.ss.length ? Math.round(100 * st.ok / st.ss.length) + ' % conformes' : ''}</span></button>`; }).join('')}</div>`;
+      <span class="mut" style="text-align:right">${st.done}${m.n ? '/' + m.n : ''} séances${st.cond ? ' + ' + st.cond + ' condensée' + (st.cond > 1 ? 's' : '') : ''}<br>${st.ss.length ? Math.round(100 * st.ok / st.ss.length) + ' % conformes' : ''}</span></button>`; }).join('')}</div>`;
 }
 function cycHistSheet(id) {
   const st = cycStats(id), m = st.meta;
-  sheet(`<h2>${esc(m.title)}</h2><div class="mut">${m.from ? fr(m.from) + ' → ' + fr(m.to) + ' · ' : ''}${st.done}${m.n ? '/' + m.n : ''} séances · ${st.sets}${m.sets ? '/' + m.sets : ''} séries prévues faites</div>
+  sheet(`<h2>${esc(m.title)}</h2><div class="mut">${m.from ? fr(m.from) + ' → ' + fr(m.to) + ' · ' : ''}${st.done}${m.n ? '/' + m.n : ''} séances${st.cond ? ' + ' + st.cond + ' condensée' + (st.cond > 1 ? 's' : '') : ''} · ${st.sets}${m.sets ? '/' + m.sets : ''} séries prévues faites</div>
   ${st.ss.map(se => `<div style="margin-top:10px"><b>${esc(se.name)}</b> <span class="mut">${fr(se.date)}</span>
     <div class="note" style="border-color:${se.diff && se.diff.length ? '#f5a524' : '#2fbf71'}">${se.diff && se.diff.length ? esc(se.diff.join('\n')) : 'Conforme au plan'}</div></div>`).join('') || '<p class="mut">Aucune séance enregistrée pour ce cycle.</p>'}`);
 }

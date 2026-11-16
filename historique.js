@@ -3,7 +3,8 @@
    Sources : journal « prévu vs fait » pour le mouvement clé (charge, reps, RIR réel) et pages Notion de chaque semaine
    pour le reste de chaque séance, réalisé tel qu'écrit (confirmé par Adrien le 15/11/2026) :
    semaine 1 = les 6 séances ; semaine 2 = S1 à S4 puis S5 + S6 condensées ; semaine 3 = S1 à S3 puis S4 + S5 + S6 condensées.
-   Séances condensées : mouvements clés seuls.
+   Séances condensées (page Notion « Séances condensées ») : mouvements clés seuls, avec leur montée.
+   Semaine 2 : Condensée B (tractions + squat). Semaine 3 : Condensée maximale (squat, dips, tractions), aucune séance volume faite.
    Quand le plan donne une fourchette (6-8 reps, 40-45 kg), c'est le bas de la fourchette qui est retenu, faute de valeur notée.
    Les notes et remarques de séance ne sont pas reprises (dépôt public).
    Importées une seule fois (voir seedHistory dans app.js) ; une séance modifiée ou supprimée ensuite n'est plus touchée.
@@ -14,6 +15,7 @@ const H_LEGS = [['lcurl1', '3x6@20'], ['legext1', '3x8@40'], ['abdstand', '3x8@6
 const H_PUSHV = [['latpoulie1', '3x12@10'], ['tri1', '3x8@15'], ['ohtri', '3x8@14']];
 const H_LEGSV = [['hip', '3x8@250'], ['lcurl1', '3x8@15'], ['legext1', '3x8@40'], ['crunchpoulie', '3x12@35']];
 const H_DIPSV = 'w 1x10@0 / w 1x5@20 / w 1x3@30 / ', H_TRACV = 'w 1x10@0 / w 1x5@10 / w 1x3@15 / ', H_SQV = 'w 1x8@0 / w 1x6@60 / w 1x6@70 / ';
+const H_SQC = 'w 1x8@0 / w 1x6@60 / w 1x4@80 / w 1x3@100 / '; // montée des séances condensées
 const H_EMOM = ['emompull', [5, 5, 5, 5, 5, 5, 5, 5, 5, 5]];
 const H_DIPS = 'w 1x10@0 / w 1x5@20 / w 1x3@40 / w 1x1@50 / ';
 const H_TRAC = 'w 1x10@0 / w 1x5@12.5 / w 1x3@17.5 / w 1x1@25 / ';
@@ -21,8 +23,8 @@ const H_SQ = 'w 1x8@0 / w 1x6@60 / w 1x6@80 / w 1x5@100 / w 1x5@110 / ';
 const H_CP = 'w 1x6@20 / ';
 
 const HISTORY = {
-  id: 'meso1-sem1-3-v4',
-  replaces: ['meso1-sem1-3', 'meso1-sem1-3-v2', 'meso1-sem1-3-v3'],
+  id: 'meso1-sem1-3-v5',
+  replaces: ['meso1-sem1-3', 'meso1-sem1-3-v2', 'meso1-sem1-3-v3', 'meso1-sem1-3-v4'],
   // Exercices du plan absents de la bibliothèque (même format que DEF_EX dans app.js)
   exercises: [
     ['cleanpress', 'Clean press', 'Épaules', 'Triceps,Dos', 'B', 'load', 6, 8, 2.5, 150, 1],
@@ -68,8 +70,8 @@ const HISTORY = {
       items: [['squat', H_SQ + '3x5@125 / 1x5@100', 3], ...H_LEGS] },
     { d: '2026-11-06', cyc: 'm1s2', s: 's4', name: 'S4 Push volume', bw: 87.1, diff: [],
       items: [['dips', H_DIPSV + '4x9@40', 2], ['cleanpress', H_CP + '3x7@35'], ...H_PUSHV] },
-    { d: '2026-11-07', cyc: 'm1s2', s: 's5', name: 'S5 + S6 condensées', bw: 87.1, diff: ['S5 et S6 condensées en une séance', 'Dips : non faits (dips volume la veille)'],
-      items: [['pull', '4x6@22.5', 0], ['squat', '5x5@115'], H_EMOM] },
+    { d: '2026-11-07', cyc: 'm1s2', s: 'cb', name: 'Condensée B · tractions + squat (S5 + S6)', bw: 87.1, diff: ['Condensée B à la place de S5 et S6 (seuls les mouvements clés sont documentés)'],
+      items: [['pull', H_TRACV + '4x6@22.5', 0], H_EMOM, ['squat', H_SQC + '5x5@115']] },
     // Semaine 3 — poids moyen 87,3 kg
     { d: '2026-11-10', cyc: 'm1s3', s: 's1', name: 'S1 Push lourd', bw: 87.3, diff: [],
       items: [['dips', H_DIPS + '3x5@62.5', 0], ['cleanpress', H_CP + '3x8@35'], ['devhalt', '3x6@44'], ...H_PUSH] },
@@ -77,7 +79,7 @@ const HISTORY = {
       items: [['pull', H_TRAC + '3x5@26.5', 0], H_EMOM, ['cleanpress', H_CP + '3x8@35'], ...H_PULL] },
     { d: '2026-11-12', cyc: 'm1s3', s: 's3', name: 'S3 Legs lourd', bw: 87.3, diff: [],
       items: [['squat', H_SQ + 'w 1x3@120 / 3x5@130 / 1x5@100', 1], ...H_LEGS] },
-    { d: '2026-11-14', cyc: 'm1s3', s: 's4', name: 'S4 + S5 + S6 condensées', bw: 87.3, diff: ['S4, S5 et S6 condensées en une séance (mouvements clés seulement)'],
-      items: [['squat', '5x5@120', 3], ['pull', '4x7@25', 0], ['dips', '4x10@40', 0]] }
+    { d: '2026-11-14', cyc: 'm1s3', s: 'cmax', name: 'Condensée maximale · plan d\'urgence', bw: 87.3, diff: ['Condensée maximale à la place de S4, S5 et S6 (aucune séance volume faite)'],
+      items: [['squat', H_SQC + '5x5@120', 3], ['dips', 'w 1x10@0 / w 1x5@20 / 4x10@40', 0], ['pull', 'w 1x10@0 / w 1x5@10 / 4x7@25', 0]] }
   ]
 };
