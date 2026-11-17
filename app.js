@@ -346,7 +346,7 @@ DEF_EX.push(...[
 ].map(mkEx));
 // Programme du cycle (cycle.js) : absent = l'appli fonctionne en mode libre seul
 const CYC = typeof CYCLE !== 'undefined' ? CYCLE : null;
-const VER = '17/11 n°14';
+const VER = '17/11 n°15';
 const DEF_TPL = [
   ['push', 'Push', ['bench', 'ohp', 'incl', 'lat', 'dips', 'tri']],
   ['pull', 'Pull', ['pull', 'row', 'pdown', 'face', 'curl', 'ham']],
@@ -705,6 +705,7 @@ function sessText(se) {
   se.entries.forEach(en => { const e = ex(en.exId), w = en.sets.filter(isWork);
     if (en.emom) lines.push(`${e.name} : ${w.length} min, ${w.reduce((t, s) => t + num(s.reps), 0)} reps`);
     else if (w.length) lines.push(`${e.name} : ${w.map(s => setTxt(e, s) + (has(s.rir) ? ' RIR ' + s.rir : '')).join(' · ')}`); });
+  if (se.warm) lines.push('Échauffement : ' + mmss(se.warm));
   if (se.cyc) lines.push(se.diff && se.diff.length ? 'Écarts au plan : ' + se.diff.join(' ; ') : 'Conforme au plan');
   if (se.note) lines.push('Note : ' + se.note);
   return lines.join('\n');
@@ -712,12 +713,14 @@ function sessText(se) {
 
 function finishWorkout(bw, note) {
   const A = S.active;
+  warmStop(A);
   A.bw = bw || A.bw; A.note = note || '';
   const diff = A.cyc ? (A.editOf ? A.diff || [] : cycDiff(A)) : null;
   A.entries = A.entries.map(en => Object.assign({ exId: en.exId, group: en.group, sets: en.sets.filter(s => s.done && (num(s.reps) > 0 || num(s.sec) > 0)) }, en.plan ? { plan: en.plan } : {}, en.emom ? { emom: en.emom } : {})).filter(en => en.sets.length);
   cleanGroups(A.entries);
   const out = { id: A.editOf || A.id, date: A.date, tplId: A.tplId, name: A.name, start: A.start, end: A.editOf ? A.end : Date.now(), bw: A.bw, note: A.note, entries: A.entries };
   if (A.cyc) Object.assign(out, { cyc: A.cyc, cycS: A.cycS, diff });
+  if (A.editOf) { const old = S.sessions.find(s => s.id === A.editOf); if (old && old.warm) out.warm = old.warm; } else if (A.warm && A.warm.sec) out.warm = A.warm.sec;
   if (!out.entries.length) return toast('Aucune série validée');
   if (A.editOf) { const k = S.sessions.findIndex(s => s.id === A.editOf); if (k >= 0) S.sessions[k] = out; else S.sessions.push(out); }
   else { S.sessions.push(out); S.settings.bw = out.bw; }
@@ -747,6 +750,7 @@ function stopRest() { if (S.active) { S.active.restEnd = 0; S.active.lastEnd = D
 function tick() {
   const A = S.active, el = $('#el'), bar = $('#rest');
   if (A && el && !A.editOf) el.textContent = mmss((Date.now() - A.start) / 1000);
+  const wc = $('#wclk'); if (A && wc && A.warm && A.warm.start) wc.textContent = mmss(warmSec(A));
   tickEmom();
   if (!A || !A.restEnd) { bar.style.display = 'none'; return; }
   const left = (A.restEnd - Date.now()) / 1000;
@@ -880,11 +884,22 @@ function vSeance() {
     <button data-act="leave">Quitter</button>
     <button class="p" data-act="finish">${A.editOf ? 'Enregistrer' : 'Terminer'}</button></div>
   <div style="height:12px"></div>
+  ${warmCard()}
   ${A.entries.map((en, i) => entryCard(i)).join('')}
   <button class="blk" data-act="pick" data-mode="add">+ Ajouter un exercice</button>
   <div class="row" style="margin-top:12px">
     ${!A.editOf && !A.cyc ? (A.tplId && tpl(A.tplId) ? '<button class="grow" data-act="savetpl">Mettre à jour le modèle</button>' : '<button class="grow" data-act="newtpl-from">Enregistrer comme modèle</button>') : ''}
     <button class="d grow" data-act="leave">Quitter</button></div>`;
+}
+// Échauffement / mobilité : chrono libre en début de séance, durée cumulée (A.warm = { sec, start }), comptée dans la durée de la séance.
+function warmSec(A) { const w = A.warm; return w ? (w.sec || 0) + (w.start ? Math.round((Date.now() - w.start) / 1000) : 0) : 0; }
+function warmStop(A) { const w = A.warm; if (w && w.start) { w.sec = (w.sec || 0) + Math.round((Date.now() - w.start) / 1000); w.start = 0; } }
+function warmCard() {
+  const A = S.active; if (!A || A.editOf) return '';
+  const w = A.warm, run = w && w.start, t = warmSec(A);
+  if (run) return `<div class="card hero"><div class="row sp nw"><div class="grow"><b>Échauffement / mobilité en cours</b><div class="timer" id="wclk">${mmss(t)}</div></div><button class="p" data-act="warm-stop">Terminer</button></div></div>`;
+  if (t > 0) return `<div class="card"><div class="row sp nw"><div class="grow"><b>Échauffement / mobilité</b><div class="mut">${mmss(t)} · compté dans la séance</div></div><button data-act="warm-go">Reprendre</button></div></div>`;
+  return `<div class="card"><div class="row sp nw"><div class="grow"><b>Échauffement / mobilité</b><div class="mut">Lance le chrono quand tu commences</div></div><button class="p" data-act="warm-go">Démarrer</button></div></div>`;
 }
 function cardCtx(en) { return { last: prevEntry(en.exId), sug: suggest(en.exId) }; }
 function entryCard(i) {
@@ -1233,7 +1248,7 @@ function exportXlsx() {
   const X = window.XLSX, D = s => new Date(s + 'T12:00'), wb = X.utils.book_new();
   const add = (name, rows, cols) => { const ws = X.utils.aoa_to_sheet(rows, { cellDates: true, dateNF: 'dd/mm/yyyy' }); ws['!cols'] = cols.map(w => ({ wch: w })); X.utils.book_append_sheet(wb, ws, name); };
   const r1 = [['Date', 'Séance', 'Exercice', 'Muscle', 'Type de série', 'N°', 'Saisie (kg)', 'Charge effective (kg)', 'Reps', 'Secondes', 'RIR', 'e1RM (kg)', 'Record', 'Repos prévu avant (s)', 'Écoulé depuis la série précédente (s)', 'Délai après fin du repos (s)']];
-  const r2 = [['Date', 'Séance', 'Durée (min)', 'Séries de travail', 'Poids du corps (kg)', 'Records', 'Note']];
+  const r2 = [['Date', 'Séance', 'Durée (min)', 'Séries de travail', 'Poids du corps (kg)', 'Records', 'Note', 'Échauffement (min)']];
   S.sessions.forEach(se => {
     let nW = 0, nPR = 0;
     se.entries.forEach(en => { const e = ex(en.exId); en.sets.forEach((s, j) => {
@@ -1241,7 +1256,7 @@ function exportXlsx() {
       const v = e1rm(e, s, bwOf(se));
       r1.push([D(se.date), se.name, e.name, e.muscle, SET_TYPES[s.t] || 'Normale', j + 1, num(s.kg), e.type === 'time' ? '' : Math.round(eff(e, s, bwOf(se)) * 100) / 100, e.type === 'time' ? '' : num(s.reps), e.type === 'time' ? num(s.sec) : '', has(s.rir) ? num(s.rir) : '', v ? Math.round(v * 10) / 10 : '', (s.pr || []).join(', '), s.rp !== undefined ? s.rp : '', s.gp !== undefined ? s.gp : '', s.od !== undefined ? s.od : '']);
     }); });
-    r2.push([D(se.date), se.name, se.end && se.start ? Math.round((se.end - se.start) / 6e4) : '', nW, bwOf(se), nPR, se.note || '']);
+    r2.push([D(se.date), se.name, se.end && se.start ? Math.round((se.end - se.start) / 6e4) : '', nW, bwOf(se), nPR, se.note || '', se.warm ? Math.round(se.warm / 6) / 10 : '']);
   });
   const r3 = [['Exercice', 'Muscle', 'Meilleur e1RM (kg)', 'Date', 'Charge effective max (kg)', 'Max reps', 'Max secondes']];
   S.exercises.forEach(e => {
@@ -1374,7 +1389,7 @@ document.addEventListener('click', ev => {
       <button data-act="close"><span>Rester dans la séance</span></button></div>`);
       return;
     case 'pause': {
-      closeSheet(); A.pausedAt = Date.now(); A.restEnd = 0; A.lastAt = 0; A.lastEnd = 0;
+      closeSheet(); A.pausedAt = Date.now(); A.restEnd = 0; A.lastAt = 0; A.lastEnd = 0; warmStop(A);
       S.paused.push(A); S.active = null; unwake(); save(true); R.tab = 'seance'; render(); window.scrollTo(0, 0);
       toast('Séance mise en pause'); return;
     }
@@ -1464,6 +1479,8 @@ document.addEventListener('click', ev => {
     case 'rest+': if (A && A.restEnd) { A.restEnd += 15000; A.lastEnd = A.restEnd; A.lastRs = (A.lastRs || 0) + 15; A.restTotal += 15; save(); tick(); } return;
     case 'rest-': if (A && A.restEnd) { A.restEnd -= 15000; A.lastEnd = A.restEnd; A.lastRs = Math.max(0, (A.lastRs || 0) - 15); A.restTotal = Math.max(1, A.restTotal - 15); save(); tick(); } return;
     case 'rest-stop': stopRest(); return;
+    case 'warm-go': if (A) { A.warm = A.warm || { sec: 0, start: 0 }; A.warm.start = Date.now(); save(); render(); } return;
+    case 'warm-stop': if (A) { warmStop(A); save(); render(); toast('Échauffement : ' + mmss(warmSec(A))); } return;
     // historique
     case 'sesmenu': sheet(`<h2>Séance</h2><div class="list"><button data-act="scopy" data-id="${d.id}"><span>Copier le résumé</span><span class="mut">prévu / fait</span></button><button data-act="sedit" data-id="${d.id}"><span>Modifier</span></button><button data-act="srep" data-id="${d.id}"><span>Refaire cette séance</span></button><button data-act="sdel" data-id="${d.id}"><span class="acc">Supprimer</span></button></div>`); return;
     case 'sedit': closeSheet(); editSession(d.id); return;
