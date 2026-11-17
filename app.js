@@ -346,7 +346,7 @@ DEF_EX.push(...[
 ].map(mkEx));
 // Programme du cycle (cycle.js) : absent = l'appli fonctionne en mode libre seul
 const CYC = typeof CYCLE !== 'undefined' ? CYCLE : null;
-const VER = '16/11 n°13';
+const VER = '17/11 n°14';
 const DEF_TPL = [
   ['push', 'Push', ['bench', 'ohp', 'incl', 'lat', 'dips', 'tri']],
   ['pull', 'Pull', ['pull', 'row', 'pdown', 'face', 'curl', 'ham']],
@@ -740,8 +740,10 @@ function tickEmom() {
   else if (left <= 3.2 && emomW !== m) { emomW = m; beep(1, 660); }
   const c = $('#emomclk'); if (c) c.textContent = `Minute ${m + 1}/${tot / 60} · ${mmss(Math.ceil(left))}`;
 }
-function startRest(sec) { const A = S.active; A.restEnd = Date.now() + sec * 1000; A.restTotal = sec; warned = false; save(); tick(); }
-function stopRest() { if (S.active) { S.active.restEnd = 0; save(); } $('#rest').style.display = 'none'; }
+// A.lastEnd = heure de fin du dernier repos (prévue, ajustée par ±15 s, ou réelle si coupé) ; A.lastAt = heure de la dernière série validée.
+// Sert à mesurer, à chaque série validée, le délai écoulé après la fin du repos (bavardage, distraction).
+function startRest(sec) { const A = S.active; A.restEnd = Date.now() + sec * 1000; A.lastEnd = A.restEnd; A.lastRs = sec; A.restTotal = sec; warned = false; save(); tick(); }
+function stopRest() { if (S.active) { S.active.restEnd = 0; S.active.lastEnd = Date.now(); save(); } $('#rest').style.display = 'none'; }
 function tick() {
   const A = S.active, el = $('#el'), bar = $('#rest');
   if (A && el && !A.editOf) el.textContent = mmss((Date.now() - A.start) / 1000);
@@ -916,7 +918,7 @@ function entryCard(i) {
     <select data-f="rir" data-i="${i}" data-j="${j}">${['', '0', '1', '2', '3', '4', '5'].map(v => `<option value="${v}" ${String(s.rir) === v ? 'selected' : ''}>${v === '' ? '–' : v === '5' ? '5+' : v}</option>`).join('')}</select>
     <button class="ok" data-act="done" data-i="${i}" data-j="${j}">✓</button></div>`;
   }).join('')}
-  <div class="row nw" style="margin-top:8px"><button class="grow" data-act="addset" data-i="${i}">+ Série</button>${t ? '' : `<button data-act="kgadj" data-i="${i}" data-d="-1">− palier</button><button data-act="kgadj" data-i="${i}" data-d="1">+ palier</button>`}</div>
+  <div class="row nw" style="margin-top:8px"><button class="grow" data-act="addset" data-i="${i}">+ Série</button><button data-act="rmlast" data-i="${i}" ${en.sets.length && !en.sets[en.sets.length - 1].done ? '' : 'disabled'}>− Série</button>${t ? '' : `<button data-act="kgadj" data-i="${i}" data-d="-1">− palier</button><button data-act="kgadj" data-i="${i}" data-d="1">+ palier</button>`}</div>
   ${lastDone >= 0 && !t ? `<div class="mut" style="margin-top:10px">RIR de la dernière série validée</div><div class="chips n10" style="margin-top:4px">${['0', '1', '2', '3', '4', '5'].map(v => `<button class="${String(en.sets[lastDone].rir) === v ? 'on' : ''}" data-act="rirset" data-i="${i}" data-j="${lastDone}" data-v="${v}">${v === '5' ? '5+' : v}</button>`).join('')}</div>` : ''}</div>`;
 }
 // Palier de charge. Lest (dips, tractions, muscle-up) : un seul petit disque à la fois, 1,5 ou 2,5 kg, en plus des disques de 5 kg
@@ -1230,14 +1232,14 @@ function exportXlsx() {
   }
   const X = window.XLSX, D = s => new Date(s + 'T12:00'), wb = X.utils.book_new();
   const add = (name, rows, cols) => { const ws = X.utils.aoa_to_sheet(rows, { cellDates: true, dateNF: 'dd/mm/yyyy' }); ws['!cols'] = cols.map(w => ({ wch: w })); X.utils.book_append_sheet(wb, ws, name); };
-  const r1 = [['Date', 'Séance', 'Exercice', 'Muscle', 'Type de série', 'N°', 'Saisie (kg)', 'Charge effective (kg)', 'Reps', 'Secondes', 'RIR', 'e1RM (kg)', 'Record']];
+  const r1 = [['Date', 'Séance', 'Exercice', 'Muscle', 'Type de série', 'N°', 'Saisie (kg)', 'Charge effective (kg)', 'Reps', 'Secondes', 'RIR', 'e1RM (kg)', 'Record', 'Repos prévu avant (s)', 'Écoulé depuis la série précédente (s)', 'Délai après fin du repos (s)']];
   const r2 = [['Date', 'Séance', 'Durée (min)', 'Séries de travail', 'Poids du corps (kg)', 'Records', 'Note']];
   S.sessions.forEach(se => {
     let nW = 0, nPR = 0;
     se.entries.forEach(en => { const e = ex(en.exId); en.sets.forEach((s, j) => {
       if (isWork(s)) nW++; if (s.pr && s.pr.length) nPR++;
       const v = e1rm(e, s, bwOf(se));
-      r1.push([D(se.date), se.name, e.name, e.muscle, SET_TYPES[s.t] || 'Normale', j + 1, num(s.kg), e.type === 'time' ? '' : Math.round(eff(e, s, bwOf(se)) * 100) / 100, e.type === 'time' ? '' : num(s.reps), e.type === 'time' ? num(s.sec) : '', has(s.rir) ? num(s.rir) : '', v ? Math.round(v * 10) / 10 : '', (s.pr || []).join(', ')]);
+      r1.push([D(se.date), se.name, e.name, e.muscle, SET_TYPES[s.t] || 'Normale', j + 1, num(s.kg), e.type === 'time' ? '' : Math.round(eff(e, s, bwOf(se)) * 100) / 100, e.type === 'time' ? '' : num(s.reps), e.type === 'time' ? num(s.sec) : '', has(s.rir) ? num(s.rir) : '', v ? Math.round(v * 10) / 10 : '', (s.pr || []).join(', '), s.rp !== undefined ? s.rp : '', s.gp !== undefined ? s.gp : '', s.od !== undefined ? s.od : '']);
     }); });
     r2.push([D(se.date), se.name, se.end && se.start ? Math.round((se.end - se.start) / 6e4) : '', nW, bwOf(se), nPR, se.note || '']);
   });
@@ -1372,7 +1374,7 @@ document.addEventListener('click', ev => {
       <button data-act="close"><span>Rester dans la séance</span></button></div>`);
       return;
     case 'pause': {
-      closeSheet(); A.pausedAt = Date.now(); A.restEnd = 0;
+      closeSheet(); A.pausedAt = Date.now(); A.restEnd = 0; A.lastAt = 0; A.lastEnd = 0;
       S.paused.push(A); S.active = null; unwake(); save(true); R.tab = 'seance'; render(); window.scrollTo(0, 0);
       toast('Séance mise en pause'); return;
     }
@@ -1405,6 +1407,7 @@ document.addEventListener('click', ev => {
       return;
     }
     case 'settype': A.entries[i].sets[j].t = d.t; if (d.t === 'w') A.entries[i].sets[j].pr = []; closeSheet(); save(); renderCard(i); return;
+    case 'rmlast': { const s = A.entries[i].sets; if (s.length && !s[s.length - 1].done) { s.pop(); save(); renderCard(i); } else toast('Décoche d\'abord la série validée (✓)'); return; }
     case 'rmset': A.entries[i].sets.splice(j, 1); closeSheet(); save(); renderCard(i); return;
     case 'copyprev': {
       const en = A.entries[i], p = prevSet(cardCtx(en).last, en, j); if (!p) return;
@@ -1422,10 +1425,17 @@ document.addEventListener('click', ev => {
         else { if (!has(s.reps) && has(p.reps)) s.reps = String(p.reps); if (!num(s.reps)) return toast('Indique les répétitions'); }
         if (e.type === 'load' && !has(s.kg)) return toast('Indique la charge');
         s.done = true; checkPR(i, j);
+        if (!A.editOf) { // chronométrage : repos prévu avant cette série, temps écoulé depuis la précédente, délai après la fin du repos
+          const now = Date.now();
+          s.at = now;
+          if (A.lastAt) s.gp = Math.round((now - A.lastAt) / 1000);
+          if (A.lastEnd) { s.rp = A.lastRs || 0; s.od = Math.round((now - A.lastEnd) / 1000); }
+          A.lastAt = now; A.lastEnd = 0;
+        }
         const nx = A.entries[i + 1], ssMid = en.group && nx && nx.group === en.group;
         const rs = s.ps !== undefined ? s.ps : (s.t === 'w' ? 60 : (e.rest || S.settings.rest));
         if (!A.editOf) { if (ssMid) toast('Superset : enchaîne ' + ex(nx.exId).name); else if (rs > 0) startRest(rs); }
-      } else { s.done = false; s.pr = []; }
+      } else { s.done = false; s.pr = []; delete s.at; delete s.gp; delete s.rp; delete s.od; }
       save(); renderCard(i); return;
     }
     case 'link': {
@@ -1451,8 +1461,8 @@ document.addEventListener('click', ev => {
     case 'savetpl': ask('Mettre à jour le modèle ' + esc(A.name) + ' ?', 'Mettre à jour', () => { tpl(A.tplId).items = A.entries.map(en => ({ exId: en.exId, sets: en.sets.filter(s => s.t !== 'w').length || 3, group: en.group })); save(); toast('Modèle mis à jour'); }, 'Ordre, exercices, nombre de séries et supersets de cette séance.'); return;
     case 'newtpl-from': sheet(`<h2>Nouveau modèle</h2><input id="tplname" placeholder="Nom du modèle" value="${esc(A.name === 'Séance libre' ? '' : A.name)}"><button class="p blk" style="margin-top:10px" data-act="newtpl-ok">Créer</button>`); return;
     case 'newtpl-ok': { const n = $('#tplname').value.trim() || 'Nouveau modèle', t = { id: uid(), name: n, rot: false, items: A.entries.map(en => ({ exId: en.exId, sets: en.sets.filter(s => s.t !== 'w').length || 3, group: en.group })) }; S.templates.push(t); A.tplId = t.id; A.name = n; closeSheet(); save(); render(); toast('Modèle créé'); return; }
-    case 'rest+': if (A && A.restEnd) { A.restEnd += 15000; A.restTotal += 15; save(); tick(); } return;
-    case 'rest-': if (A && A.restEnd) { A.restEnd -= 15000; A.restTotal = Math.max(1, A.restTotal - 15); save(); tick(); } return;
+    case 'rest+': if (A && A.restEnd) { A.restEnd += 15000; A.lastEnd = A.restEnd; A.lastRs = (A.lastRs || 0) + 15; A.restTotal += 15; save(); tick(); } return;
+    case 'rest-': if (A && A.restEnd) { A.restEnd -= 15000; A.lastEnd = A.restEnd; A.lastRs = Math.max(0, (A.lastRs || 0) - 15); A.restTotal = Math.max(1, A.restTotal - 15); save(); tick(); } return;
     case 'rest-stop': stopRest(); return;
     // historique
     case 'sesmenu': sheet(`<h2>Séance</h2><div class="list"><button data-act="scopy" data-id="${d.id}"><span>Copier le résumé</span><span class="mut">prévu / fait</span></button><button data-act="sedit" data-id="${d.id}"><span>Modifier</span></button><button data-act="srep" data-id="${d.id}"><span>Refaire cette séance</span></button><button data-act="sdel" data-id="${d.id}"><span class="acc">Supprimer</span></button></div>`); return;
