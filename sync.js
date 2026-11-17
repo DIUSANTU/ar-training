@@ -85,10 +85,12 @@ function syncClick(d) {
     case 'sync-link': {
       // tolérant : retrouve l'adresse et le jeton où qu'ils soient dans le texte collé (espaces, retours à la ligne, « # » perdu, majuscule automatique)
       const raw = ($('#synccode').value || '').replace(/[​-‍﻿ ]/g, ' ');
-      const mu = raw.match(/https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec/i);
-      const after = mu ? raw.slice(mu.index + mu[0].length) : '';
-      const mt = after.match(/[0-9a-f]{32}/i) || after.match(/[\w-]{16,}/);
-      const url = mu ? mu[0] : '', token = mt ? mt[0] : '';
+      // accepte aussi l'identifiant seul (AKfycb…) : l'adresse complète est alors reconstruite ; un lien réécrit par une messagerie est lu tel quel
+      const dec = (() => { try { return decodeURIComponent(raw); } catch (e) { return raw; } })(), txt = /AKfycb/.test(raw) && !/%2F/i.test(raw) ? raw : dec;
+      const mu = txt.match(/https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec/i), id = mu ? '' : (txt.match(/AKfycb[\w-]{20,}/) || [])[0];
+      const head = mu ? mu[0] : id || '', after = head ? txt.slice(txt.indexOf(head) + head.length) : '';
+      const mt = after.match(/[0-9a-f]{32}/i) || txt.match(/[0-9a-f]{32}/i) || after.match(/[\w-]{16,}/);
+      const url = mu ? mu[0] : id ? 'https://script.google.com/macros/s/' + id + '/exec' : '', token = mt ? mt[0] : '';
       if (!url || !token) { toast(!url ? 'Adresse du script introuvable dans le texte collé' : 'Jeton introuvable après l\'adresse'); break; }
       S.settings.sync = { url, token }; S.syncErr = ''; save(); render();
       // premier envoi : tout ce qui n'est pas encore parti
