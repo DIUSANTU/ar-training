@@ -83,8 +83,13 @@ function syncClick(d) {
   if (!d.act || d.act.slice(0, 5) !== 'sync-') return false;
   switch (d.act) {
     case 'sync-link': {
-      const [url, token] = ($('#synccode').value || '').trim().split('#');
-      if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(url || '') || !token) { toast('Code de liaison invalide'); break; }
+      // tolérant : retrouve l'adresse et le jeton où qu'ils soient dans le texte collé (espaces, retours à la ligne, « # » perdu, majuscule automatique)
+      const raw = ($('#synccode').value || '').replace(/[​-‍﻿ ]/g, ' ');
+      const mu = raw.match(/https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec/i);
+      const after = mu ? raw.slice(mu.index + mu[0].length) : '';
+      const mt = after.match(/[0-9a-f]{32}/i) || after.match(/[\w-]{16,}/);
+      const url = mu ? mu[0] : '', token = mt ? mt[0] : '';
+      if (!url || !token) { toast(!url ? 'Adresse du script introuvable dans le texte collé' : 'Jeton introuvable après l\'adresse'); break; }
       S.settings.sync = { url, token }; S.syncErr = ''; save(); render();
       // premier envoi : tout ce qui n'est pas encore parti
       S.syncQ = S.sessions.filter(se => !(S.synced || {})[se.id]).map(se => se.id); save(); trySync(true); break;
