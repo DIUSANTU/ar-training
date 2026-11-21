@@ -346,7 +346,7 @@ DEF_EX.push(...[
 ].map(mkEx));
 // Programme du cycle (cycle.js) : absent = l'appli fonctionne en mode libre seul
 const CYC = typeof CYCLE !== 'undefined' ? CYCLE : null;
-const VER = '17/11 n°18';
+const VER = '21/11 n°19';
 const DEF_TPL = [
   ['push', 'Push', ['bench', 'ohp', 'incl', 'lat', 'dips', 'tri']],
   ['pull', 'Pull', ['pull', 'row', 'pdown', 'face', 'curl', 'ham']],
@@ -880,7 +880,7 @@ function vSeance() {
     ${last ? `<h3>Dernière séance</h3><div class="mut">${esc(last.name)} · ${fr(last.date)}</div>` : ''}`;
   }
   return `<div class="row sp nw"><div class="grow"><h1 style="margin:0">${esc(A.name)}</h1>
-    <div class="timer">${A.editOf ? 'Modification · ' + fr(A.date) : '<span id="el">0:00</span> · ' + fr(A.date)}</div></div>
+    <div class="timer">${A.editOf ? 'Modification · <input type="date" data-sdate="1" value="' + esc(A.date) + '" style="width:auto;display:inline-block;padding:4px 8px;font-size:15px">' : '<span id="el">0:00</span> · ' + fr(A.date)}</div></div>
     <button data-act="leave">Quitter</button>
     <button class="p" data-act="finish">${A.editOf ? 'Enregistrer' : 'Terminer'}</button></div>
   <div style="height:12px"></div>
@@ -1532,6 +1532,7 @@ document.addEventListener('change', ev => {
   const t = ev.target, d = t.dataset;
   if (coachChange(t)) return;
   if (d.cp !== undefined && CYC) { const pl = S.cycPlan[CYC.id] = S.cycPlan[CYC.id] || {}; if (t.value) pl[d.cp] = t.value; else delete pl[d.cp]; save(); render(); return; }
+  if (d.sdate && S.active && S.active.editOf) { if (/^\d{4}-\d{2}-\d{2}$/.test(t.value)) { S.active.date = t.value; save(); toast('Date : ' + fr(t.value)); } return; } // correction de la date d'une séance déjà enregistrée
   if (d.f && S.active) { S.active.entries[+d.i].sets[+d.j][d.f] = t.value; save(); return; }
   if (d.exf) {
     const e = ex(R.id), k = d.exf;
