@@ -6,11 +6,11 @@
    Une fourchette (6-8 reps, 40-45 kg) oblige à saisir la valeur réelle.
    EMOM : { emom: minutes, reps: répétitions par minute }. */
 const CYCLE = {
-  id: 'm1s4',
-  title: 'Semaine de décharge · 5 séances',
-  from: '2026-11-16',
-  to: '2026-11-22',
-  note: 'Décharge : rien à l\'échec. Dips et squat : moitié des séries. Tractions : tout le volume, charge réduite. Note le RIR de la dernière série du premier mouvement.',
+  id: 'm2s1',
+  title: 'Méso 2 · Semaine 1',
+  from: '2026-11-23',
+  to: '2026-11-29',
+  note: 'RIR visé 3 sur les séries lourdes. 5 séances : Push, Pull, Legs, Upper, Lower. Note le RIR de la dernière série de travail du mouvement principal. Accessoires : 3 séries.',
   // Exercices du plan absents de la bibliothèque (même format que DEF_EX dans app.js)
   exercises: [
     ['cleanpress', 'Clean press', 'Épaules', 'Triceps,Dos', 'B', 'load', 6, 8, 2.5, 150, 1],
@@ -30,50 +30,46 @@ const CYCLE = {
   ],
   sessions: [
     { id: 's1', name: 'S1 Push lourd', items: [
-      ['dips', 'w 1x10@0 2:00 / w 1x5@20 2:00 / w 1x3@40 2:30 / 2x4@60 4:00'],
-      ['cleanpress', 'w 1x6@20 1:00 / 2x6@35 2:30'],
-      ['devhalt', '2x6-8@44 2:30'],
-      ['pecpoulie', '2x10-12@12.5 2:30'],
-      ['latpoulie1', '2x12@10 1:30']
+      ['dips', 'w 1x10@0 2:00 / w 1x5@20 2:00 / w 1x3@40 2:30 / w 1x1@50 3:00 / 3x4@62.5 4:00'],
+      ['cleanpress', 'w 1x6@20 1:00 / 3x6@40 2:30', 'Progression : +1 rep par semaine jusqu\'à 3x8, puis on monte la charge.'],
+      ['devhalt', '3x6-8@44 2:30', 'Passe à 46 kg quand tu fais 3x8.'],
+      ['pecpoulie', '3x10-12@12.5 2:30'],
+      ['latpoulie1', '3x12@10 1:30']
     ] },
     { id: 's2', name: 'S2 Pull lourd', items: [
-      ['pull', 'w 1x10@0 1:30 / w 1x5@12.5 2:00 / w 1x3@17.5 2:30 / 3x5@22.5 3:30', '22,5 kg et non 23,75 : un seul petit disque.'],
+      ['pull', 'w 1x10@0 1:30 / w 1x5@12.5 2:00 / w 1x3@17.5 2:30 / w 1x1@20 3:00 / 3x5@25 3:30', 'Plan : 25, puis 26,25, puis 27,5 kg. Lest à relever si ton poids moyen 7 j descend.'],
       ['emompull', { emom: 10, reps: 5 }, 'Au poids du corps.'],
-      ['cleanpress', 'w 1x6@20 1:00 / 2x6@35 2:30'],
-      ['rowwide', '2x8@50 2:30', 'Charge par main.'],
-      ['rowclose1', '1x8@70 2:30', 'Charge par main. Machine Technogym ou tirage horizontal.'],
-      ['latpoulie1', '2x10@10 1:30'],
-      ['ham', '1x8@22 2:00'],
-      ['curlseat', '1x8@16 2:00']
+      ['cleanpress', 'w 1x6@20 1:00 / 3x6@40 2:30'],
+      ['rowwide', '3x8@50 2:30', 'Charge par main.'],
+      ['rowclose1', '3x8@70 2:30', 'Charge par main. Machine Technogym ou tirage horizontal.'],
+      ['latpoulie1', '3x10@10 1:30'],
+      ['ham', '3x8@22 2:00'],
+      ['curlseat', '3x8@16 2:00']
     ] },
     { id: 's3', name: 'S3 Legs lourd', items: [
-      ['squat', 'w 1x8@0 1:00 / w 1x6@60 1:30 / w 1x6@80 3:00 / w 1x5@100 3:00 / w 1x5@110 3:00 / 2x5@120 3:30', 'Pas de back-off.'],
-      ['lcurl1', '2x6-8@20 2:30'],
-      ['legext1', '2x8-10@40-45 2:30'],
-      ['abdstand', '2x8@60 2:00'],
-      ['crunchpoulie', '2x12-15@35 2:00']
+      ['squat', 'w 1x8@0 1:00 / w 1x6@60 1:30 / w 1x6@80 3:00 / w 1x5@100 3:00 / w 1x3@115 3:00 / 3x5@125 3:30 / 1x5@100 3:00', 'Dernière série : back-off à 100 kg.'],
+      ['lcurl1', '3x6-8@20 2:30'],
+      ['legext1', '3x8-10@40-45 2:30'],
+      ['abdstand', '3x8@60 2:00'],
+      ['crunchpoulie', '3x12-15@35 2:00']
     ] },
-    // Décharge passée à 5 séances le 15/11/2026 (demande d'Adrien) : S4 = ancien Push volume + ancien Pull volume, S5 = ancien Legs volume.
     { id: 's4', name: 'S4 Upper (haut du corps)', items: [
-      ['dips', 'w 1x10@0 1:30 / w 1x5@20 2:00 / w 1x3@30 2:30 / 2x8@40 3:00'],
-      ['cleanpress', 'w 1x6@20 1:00 / 2x6@35 2:30'],
-      ['pull', 'w 1x10@0 1:30 / w 1x5@10 2:00 / w 1x3@15 2:30 / 4x6@20 3:00'],
+      ['pull', 'w 1x10@0 1:30 / w 1x5@10 2:00 / w 1x3@15 2:30 / 4x6@22.5 3:00'],
       ['emompull', { emom: 10, reps: 5 }, 'Au poids du corps.'],
-      ['rowwide', '2x8@50 2:30', 'Charge par main.'],
-      ['rowclose1', '1x8@70 2:30', 'Charge par main. Machine Technogym ou tirage horizontal.'],
-      ['latpoulie1', '2x12@10 1:30'],
-      ['tri1', '2x8@15-17.5 2:30', 'Extension verticale avec bande poignets.'],
-      ['ohtri', '2x8-10@14 2:30'],
-      ['ham', '1x8@22 2:00'],
-      ['curlseat', '1x8@16 2:00']
+      ['dips', 'w 1x10@0 1:30 / w 1x5@20 2:00 / w 1x3@30 2:30 / 4x8@42.5 3:00', 'Les dips avant le clean press : épaules.'],
+      ['cleanpress', 'w 1x6@20 1:00 / 2x6@40 2:30'],
+      ['rowwide', '3x8@50 2:30', 'Charge par main.'],
+      ['latpoulie1', '3x10-12@10 1:30'],
+      ['tri1', '3x8-10@15 2:30', 'Extension verticale à la poignée, une main.'],
+      ['curlseat', '3x8@16 2:00']
     ] },
     { id: 's5', name: 'S5 Lower (bas du corps)', items: [
-      ['squat', 'w 1x8@0 1:00 / w 1x6@60 1:30 / w 1x4@80 2:00 / w 1x3@100 2:30 / 3x5@110 3:00'],
-      ['hip', '2x8@250 3:00'],
-      ['lcurl1', '2x8@15 2:30'],
-      ['legext1', '2x8-10@40-45 2:30'],
-      ['crunchpoulie', '2x12-15@35 2:00'],
-      ['latpoulie1', '2x10@10 1:30']
+      ['squat', 'w 1x8@0 1:00 / w 1x6@60 1:30 / w 1x4@80 2:00 / w 1x3@100 2:30 / 5x5@115 3:00'],
+      ['hip', '3x8@250 3:00'],
+      ['lcurl1', '3x8@15 2:30'],
+      ['legext1', '3x8-10@40-45 2:30'],
+      ['crunchpoulie', '3x12-15@35 2:00'],
+      ['latpoulie1', '3x10@10 1:30']
     ] }
   ]
 };
