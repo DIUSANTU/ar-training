@@ -346,7 +346,7 @@ DEF_EX.push(...[
 ].map(mkEx));
 // Programme du cycle (cycle.js) : absent = l'appli fonctionne en mode libre seul
 const CYC = typeof CYCLE !== 'undefined' ? CYCLE : null;
-const VER = '23/11 n°20';
+const VER = '25/11 n°21';
 const DEF_TPL = [
   ['push', 'Push', ['bench', 'ohp', 'incl', 'lat', 'dips', 'tri']],
   ['pull', 'Pull', ['pull', 'row', 'pdown', 'face', 'curl', 'ham']],
@@ -449,9 +449,46 @@ async function snapshot() {
 }
 
 // =============== Interface : feuille, toast, son, écran ===============
+// ---------- Dictée vocale (note de fin de séance) ----------
+// Reconnaissance vocale du navigateur. Sur iPhone, elle est annoncée indisponible dans les applis installées sur l'écran d'accueil
+// (WebKit, bug 225298) : dans ce cas le bouton ouvre simplement le clavier, dont la touche micro fait la dictée au niveau du système.
+const getSR = () => window.SpeechRecognition || window.webkitSpeechRecognition;
+let dict = null, dictBroken = false;
+const MIC = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg>';
+const dictBtn = id => `<button class="blk dict" id="dictbtn" data-act="dict" data-t="${id}" style="margin-top:8px">${MIC}Dicter la note</button>`;
+function dictStop(abort) { if (dict) { try { abort ? dict.rec.abort() : dict.rec.stop(); } catch (e) {} } }
+function dictUi(on) { const b = $('#dictbtn'); if (b) { b.classList.toggle('rec', on); b.innerHTML = on ? '<span class="recdot"></span>Arrêter (touche pour finir)' : MIC + 'Dicter la note'; } }
+function dictToggle(id) {
+  const ta = $('#' + id); if (!ta) return;
+  if (dict) return dictStop();
+  const keyboard = msg => { ta.focus(); toast(msg || 'Touche le micro de ton clavier pour dicter'); };
+  const SR = getSR();
+  if (!SR || dictBroken) return keyboard();
+  const rec = new SR(); rec.lang = 'fr-FR'; rec.continuous = true; rec.interimResults = true;
+  const base = ta.value ? ta.value.replace(/\s+$/, '') + ' ' : '';
+  let fin = '', err = '';
+  dict = { rec };
+  rec.onresult = ev => {
+    let interim = '';
+    for (let k = ev.resultIndex; k < ev.results.length; k++) {
+      const r = ev.results[k], t = r[0].transcript;
+      if (r.isFinal) fin += (fin && !/^\s/.test(t) ? ' ' : '') + t; else interim += t;
+    }
+    ta.value = base + (fin + (interim && fin && !/^\s/.test(interim) ? ' ' : '') + interim).trim();
+    ta.scrollTop = ta.scrollHeight;
+  };
+  rec.onerror = ev => { err = ev.error; };
+  rec.onend = () => {
+    dict = null; dictUi(false);
+    if (err === 'service-not-allowed') { dictBroken = true; keyboard('Dictée intégrée indisponible ici : touche le micro de ton clavier'); }
+    else if (err === 'not-allowed') keyboard('Micro refusé : autorise-le dans les réglages du téléphone, ou touche le micro du clavier');
+    else if (err && err !== 'no-speech' && err !== 'aborted') toast('Dictée interrompue (' + err + ')');
+  };
+  try { rec.start(); dictUi(true); } catch (e) { dict = null; keyboard(); }
+}
 let askCb = null;
 function sheet(html) { const s = $('#sheet'); s.innerHTML = `<div class="bg" data-act="close"></div><div class="sh"><div class="grab"></div>${html}</div>`; s.classList.add('on'); }
-function closeSheet() { const s = $('#sheet'); s.classList.remove('on'); s.innerHTML = ''; askCb = null; }
+function closeSheet() { dictStop(true); const s = $('#sheet'); s.classList.remove('on'); s.innerHTML = ''; askCb = null; }
 function ask(msg, ok, cb, sub) { sheet(`<h2>${msg}</h2>${sub ? `<p class="mut">${sub}</p>` : ''}<div class="row nw" style="margin-top:14px"><button class="grow" data-act="close">Annuler</button><button class="p grow" data-act="ask-yes">${ok}</button></div>`); askCb = cb; }
 let toastT;
 function toast(m) { const t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2800); }
@@ -1375,11 +1412,13 @@ document.addEventListener('click', ev => {
       sheet(`<h2>${A.editOf ? 'Enregistrer les modifications' : 'Terminer la séance'}</h2>
       <div class="kpi"><div><b>${A.editOf ? '–' : Math.round((Date.now() - A.start) / 6e4)}</b><span class="mut">min</span></div><div><b>${nW}</b><span class="mut">séries</span></div><div><b class="acc">${nPR}</b><span class="mut">records</span></div></div>
       <label class="f">Poids du corps du jour (kg)<input id="finbw" inputmode="decimal" value="${fmtIn(A.bw)}"></label>
-      <label class="f">Note de séance<textarea id="finnote" rows="2" placeholder="Forme, sommeil, douleurs…">${esc(A.note)}</textarea></label>
+      <label class="f">Note de séance<textarea id="finnote" rows="3" placeholder="Forme, sommeil, douleurs…">${esc(A.note)}</textarea></label>
+      ${dictBtn('finnote')}
       ${nU ? `<p class="mut">${nU} série${nU > 1 ? 's' : ''} non validée${nU > 1 ? 's' : ''} ser${nU > 1 ? 'ont' : 'a'} ignorée${nU > 1 ? 's' : ''}.</p>` : ''}
       <button class="p blk" style="margin-top:12px" data-act="finish-ok">Enregistrer</button>`);
       return;
     }
+    case 'dict': dictToggle(d.t); return;
     case 'finish-ok': finishWorkout(num($('#finbw').value), $('#finnote').value.trim()); return;
     case 'leave':
       if (A.editOf) { ask('Quitter sans enregistrer les modifications ?', 'Quitter', () => { S.active = null; save(true); render(); }); return; }
