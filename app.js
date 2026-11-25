@@ -346,7 +346,7 @@ DEF_EX.push(...[
 ].map(mkEx));
 // Programme du cycle (cycle.js) : absent = l'appli fonctionne en mode libre seul
 const CYC = typeof CYCLE !== 'undefined' ? CYCLE : null;
-const VER = '25/11 n°21';
+const VER = '25/11 n°22';
 const DEF_TPL = [
   ['push', 'Push', ['bench', 'ohp', 'incl', 'lat', 'dips', 'tri']],
   ['pull', 'Pull', ['pull', 'row', 'pdown', 'face', 'curl', 'ham']],
@@ -416,6 +416,7 @@ function normalize(s) {
   s.lastExport = s.lastExport || 0;
   s.coach = normalizeCoach(s.coach);
   s.cycPlan = s.cycPlan || {};
+  s.subs = Array.isArray(s.subs) ? s.subs : []; // remplacements d'exercices du cycle (cette semaine ou définitifs)
   seedHistory(s);
   return s;
 }
@@ -711,7 +712,10 @@ const cycDone = id => S.sessions.filter(se => se.cyc === CYC.id && se.cycS === i
 function startCycle(sid) {
   const cs = CYC && CYC.sessions.find(x => x.id === sid); if (!cs) return;
   if (S.active) { toast('Une séance est déjà en cours : termine-la ou quitte-la d\'abord'); R.tab = 'seance'; render(); return window.scrollTo(0, 0); }
-  begin(cs.name, '', () => cs.items.map(([exId, spec, note]) => typeof spec === 'string'
+  const subFor = id => { const s = (S.subs || []).find(x => x.from === id && subActive(x)); return s ? s.to : null; };
+  begin(cs.name, '', () => cs.items.map(([exId, spec, note]) => typeof spec === 'string' && subFor(exId)
+    ? { exId: subFor(exId), group: '', plan: spec, pnote: 'Remplace ' + ex(exId).name, sub: exId, sets: planSets(spec).map(s => Object.assign(s, { pk: '' })) }
+    : typeof spec === 'string'
     ? { exId, group: '', plan: spec, pnote: note || '', sets: planSets(spec) }
     : { exId, group: '', emom: spec.emom, pnote: note || '', sets: Array.from({ length: spec.emom }, () => Object.assign(blankSet('n'), { pk: '0', pn: String(spec.reps), ps: 0 })) }));
   S.active.cyc = CYC.id; S.active.cycS = sid; save();
@@ -720,6 +724,7 @@ function startCycle(sid) {
 function cycDiff(A) {
   const out = [];
   A.entries.forEach(en => {
+    if (en.sub) { if (en.sets.some(isWork)) out.push(`${ex(en.exId).name} : remplace ${ex(en.sub).name}`); return; }
     if ((!en.plan && !en.emom) || !en.sets.some(isWork)) return; // rien de fait : signalé plus bas comme « non fait »
     const e = ex(en.exId);
     if (en.emom) { const r = en.sets.filter(isWork).reduce((t, s) => t + num(s.reps), 0), pr = en.emom * num(en.sets[0].pn); if (r !== pr) out.push(`${e.name} : ${r} reps sur ${pr} prévues`); return; }
@@ -732,7 +737,7 @@ function cycDiff(A) {
     if (bits.length) out.push(e.name + ' : ' + bits.join(', '));
   });
   const cs = CYC && CYC.sessions.find(x => x.id === A.cycS);
-  if (cs) cs.items.forEach(([id]) => { if (!A.entries.some(en => en.exId === id && (en.plan || en.emom) && en.sets.some(isWork))) out.push(ex(id).name + ' : non fait'); });
+  if (cs) cs.items.forEach(([id]) => { if (!A.entries.some(en => (en.exId === id || en.sub === id) && (en.plan || en.emom) && en.sets.some(isWork))) out.push(ex(id).name + ' : non fait'); });
   A.entries.forEach(en => { if (!en.plan && !en.emom && en.sets.some(isWork)) out.push(ex(en.exId).name + ' : ajouté (hors plan)'); });
   return out;
 }
@@ -1228,6 +1233,7 @@ function vSet() {
     <label class="f">Poids du corps (kg)<input inputmode="decimal" data-setf="bw" value="${fmtIn(S.settings.bw)}"></label>
     <label class="f">Repos par défaut (s)<input inputmode="numeric" data-setf="rest" value="${S.settings.rest}"></label></div>
     <p class="mut">Le poids du corps est enregistré avec chaque séance (tractions, dips, muscle-up) : changer cette valeur ne réécrit pas l'historique.</p></div>
+  ${subsCard()}
   <div class="card"><h2>Modèles et rotation</h2>
     <p class="mut">La séance proposée est celle qui suit la dernière faite dans la rotation : une séance ratée ne décale pas ton PPL.</p>
     ${S.templates.map((t, k) => `<div class="row nw" style="margin-top:6px"><button class="grow" style="text-align:left" data-act="tpl" data-id="${t.id}">${esc(t.name)} <span class="mut">· ${t.items.length} exos${t.rot ? ' · rotation' : ''}</span></button>
@@ -1335,9 +1341,39 @@ function picked(id) {
   const p = R.pick; closeSheet();
   if (p.mode === 'tpl') { const t = tpl(R.id); t.items.push({ exId: id, sets: 3, group: '' }); save(); return render(); }
   const A = S.active; if (!A) return;
-  if (p.mode === 'replace') { const g = A.entries[p.i].group; A.entries[p.i] = newEntry(id, 0, g); save(); return renderCard(p.i); }
+  if (p.mode === 'replace') return replaceScope(p.i, id);
   A.entries.push(newEntry(id)); save(); render();
   setTimeout(() => { const el = document.getElementById('en-' + (A.entries.length - 1)); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 50);
+}
+// Remplacement d'un exercice : durée au choix (cette séance, jusqu'à la fin de la semaine du cycle, définitivement)
+function replaceScope(i, id) {
+  const A = S.active, en = A.entries[i];
+  R.rep = { i, id };
+  const cyc = !!A.cyc && !en.emom, tplOk = !A.cyc && A.tplId && tpl(A.tplId);
+  if (!cyc && !tplOk) return doReplace(i, id, 0);
+  sheet(`<h2>Remplacer par ${esc(ex(id).name)}</h2><div class="mut">Pour quelle durée ?</div><div class="list">
+    <button data-act="repdo" data-s="0"><span>Cette séance seulement</span><span class="mut">le programme ne change pas</span></button>
+    ${cyc ? `<button data-act="repdo" data-s="1"><span>Jusqu'à la fin de la semaine</span><span class="mut">jusqu'au ${fr(CYC.to)}</span></button>
+    <button data-act="repdo" data-s="2"><span>Définitivement</span><span class="mut">toutes les prochaines séances</span></button>` : `<button data-act="repdo" data-s="2"><span>Définitivement</span><span class="mut">met à jour le modèle</span></button>`}</div>`);
+}
+function doReplace(i, id, scope) {
+  const A = S.active, old = A.entries[i], from = old.sub || old.exId, g = old.group;
+  const cs = A.cyc && CYC && CYC.sessions.find(x => x.id === A.cycS), it = cs && cs.items.find(a => a[0] === from);
+  const planned = old.plan ? old.sets.filter(s => s.pk !== undefined) : [];
+  // on garde la structure du plan (séries, reps, repos) mais pas la charge de l'exercice remplacé
+  A.entries[i] = planned.length
+    ? { exId: id, group: g, plan: old.plan, pnote: 'Remplace ' + ex(from).name, sub: from, sets: planned.map(s => Object.assign(blankSet(s.t), { pk: '', pn: s.pn, ps: s.ps })) }
+    : newEntry(id, 0, g);
+  if (scope >= 1 && A.cyc) { S.subs = (S.subs || []).filter(x => x.from !== from); S.subs.push({ from, to: id, until: scope === 1 ? CYC.to : '' }); }
+  if (scope === 2 && !A.cyc && A.tplId && tpl(A.tplId)) { const t = tpl(A.tplId).items.find(x => x.exId === from); if (t) t.exId = id; }
+  save(); renderCard(i);
+  if (scope === 1) toast('Remplacé jusqu\'au ' + fr(CYC.to)); else if (scope === 2) toast('Remplacé définitivement'); else if (A.cyc) toast('Remplacé pour cette séance');
+}
+const subActive = x => !x.until || x.until >= today();
+function subsCard() {
+  const l = (S.subs || []).map((x, k) => ({ x, k })).filter(o => subActive(o.x));
+  if (!l.length) return '';
+  return `<div class="card"><h2>Remplacements d'exercices</h2><div class="list">${l.map(o => `<button data-act="subdel" data-k="${o.k}"><span>${esc(ex(o.x.from).name)} → ${esc(ex(o.x.to).name)}</span><span class="mut">${o.x.until ? 'jusqu\'au ' + fr(o.x.until) : 'définitif'} · Annuler</span></button>`).join('')}</div></div>`;
 }
 function exMenu(i) {
   const A = S.active, en = A.entries[i], e = ex(en.exId), nx = A.entries[i + 1];
@@ -1447,6 +1483,8 @@ document.addEventListener('click', ev => {
     case 'pick': openPick(d.mode); return;
     case 'pickrep': openPick('replace', i); return;
     case 'pickex': picked(d.id); return;
+    case 'repdo': { const r = R.rep; if (!r || !A) return; closeSheet(); doReplace(r.i, r.id, +d.s); return; }
+    case 'subdel': S.subs.splice(+d.k, 1); save(); render(); toast('Remplacement annulé'); return;
     case 'pickcreate': { const n = $('#pickq').value.trim(); if (!n) return; const e = Object.assign(exDefaults(), { name: n }); S.exercises.push(e); picked(e.id); toast('Exercice créé : règle son muscle dans sa fiche'); return; }
     case 'kgadj': { // décale d'un palier la charge des séries de travail restantes
       const en = A.entries[i], e = ex(en.exId), c = cardCtx(en);
