@@ -27,7 +27,7 @@ function sessPayload(se) {
     entries: se.entries.map(en => ({ name: ex(en.exId).name, emom: en.emom || 0,
       sets: en.sets.map(s => ({ t: s.t, kg: s.kg, reps: s.reps, sec: s.sec, rir: s.rir, pk: s.pk, pn: s.pn, rp: s.rp, gp: s.gp, od: s.od,
         tot: ['bw', 'assist'].includes(ex(en.exId).type) && s.done ? Math.round(eff(ex(en.exId), s, bwOf(se)) * 100) / 100 : '' })) })),
-    warm: se.warm || 0 };
+    warm: se.warm || 0, note: se.note || '' };
 }
 function queueSync(id) {
   S.syncQ = S.syncQ || [];
